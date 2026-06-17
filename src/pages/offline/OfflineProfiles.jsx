@@ -24,6 +24,8 @@ const INITIAL_FORM = {
   motherTongue: '',
 }
 
+
+
 function getFileExtension(fileName) {
   const dotIndex = fileName.lastIndexOf('.')
   return dotIndex === -1 ? '' : fileName.slice(dotIndex).toLowerCase()
