@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CheckCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { message } from 'antd'
 import CrmButton from '../../components/crm/CrmButton'
@@ -7,6 +7,8 @@ import { maskMobileNumber } from '../../data/registerOfflineOptions'
 const inputClass =
   'w-full max-w-[200px] rounded-md border border-slate-200 bg-white px-3 py-2 text-center text-sm text-slate-800 outline-none focus:border-[#F28B18] focus:ring-1 focus:ring-[#F28B18]'
 
+const REQUEST_AGAIN_COOLDOWN = 30
+
 export default function MobileVerification({ mobileNumber }) {
   const [pin, setPin] = useState('')
   const [showChangeNumber, setShowChangeNumber] = useState(false)
@@ -14,6 +16,17 @@ export default function MobileVerification({ mobileNumber }) {
   const [whatsappStatus, setWhatsappStatus] = useState('Processing')
   const [pinError, setPinError] = useState('')
   const [isVerifying, setIsVerifying] = useState(false)
+  const [requestAgainCooldown, setRequestAgainCooldown] = useState(REQUEST_AGAIN_COOLDOWN)
+
+  useEffect(() => {
+    if (requestAgainCooldown <= 0) return undefined
+
+    const timer = window.setInterval(() => {
+      setRequestAgainCooldown((prev) => prev - 1)
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [requestAgainCooldown])
 
   const maskedMobile = maskMobileNumber(mobileNumber)
 
@@ -45,7 +58,10 @@ export default function MobileVerification({ mobileNumber }) {
   }
 
   const handleRequestAgain = () => {
+    if (requestAgainCooldown > 0) return
+
     message.info('Verification PIN resent successfully.')
+    setRequestAgainCooldown(REQUEST_AGAIN_COOLDOWN)
   }
 
   const handleSubmitNumberChange = () => {
@@ -138,16 +154,24 @@ export default function MobileVerification({ mobileNumber }) {
 
       <div className="space-y-3 text-lg text-slate-800">
         <p>SMS will reach you shortly.</p>
-        <p>
-          If you have not received it yet please{' '}
-          <button
-            type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 font-bold text-[#2563EB]"
-            onClick={handleRequestAgain}
-          >
-            Request Again <CheckCircleOutlined className="text-[#2563EB]" />
-          </button>
-        </p>
+        {requestAgainCooldown > 0 ? (
+          <p>
+            If you have not received it yet please wait{' '}
+            <span className="font-bold text-[#F28B18]">{requestAgainCooldown}</span> seconds before
+            requesting again.
+          </p>
+        ) : (
+          <p>
+            If you have not received it yet please{' '}
+            <button
+              type="button"
+              className="cursor-pointer border-0 bg-transparent p-0 font-bold text-[#2563EB]"
+              onClick={handleRequestAgain}
+            >
+              Request Again <CheckCircleOutlined className="text-[#2563EB]" />
+            </button>
+          </p>
+        )}
       </div>
 
       <button

@@ -1,11 +1,19 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik'
 import { message, Spin } from 'antd'
+import { StarFilled } from '@ant-design/icons'
 import { useSearchParams, useLocation, Navigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import CrmButton from '../../components/crm/CrmButton'
+import PincodeSearchField from '../../components/PincodeSearchField'
+import ResidenceLocationFields from '../../components/ResidenceLocationFields'
 import { selectToken } from '../../features/auth/authSelectors'
 import { fetchBasicData } from '../../services/basicDataService'
+import {
+  fetchStarDetail,
+  formatRegistrationDob,
+  mapStarDetailToOptions,
+} from '../../services/starDetailService'
 import {
   getDefaultFormOptions,
   mapBasicDataToFormOptions,
@@ -32,7 +40,7 @@ import MobileVerification from './MobileVerification'
 const inputClass =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#F28B18] focus:ring-1 focus:ring-[#F28B18]'
 
-const selectClass = `${inputClass} cursor-pointer`
+const selectClass = `${inputClass} cursor-pointer disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400`
 const labelClass = 'mb-1.5 block text-sm font-semibold text-slate-800'
 const errorClass = 'mt-1 text-xs text-[#D71920]'
 
@@ -82,7 +90,44 @@ function SelectField({ name, placeholder, options, disabled, onChange }) {
 }
 
 function ErrorText({ name }) {
-  return <ErrorMessage name={name} component="p" className={errorClass} />
+  return <ErrorMessage name={name} component="p" className={errorClass} data-form-error="" />
+}
+
+function StarRecommendation({ stars, selectedStarId, onSelect }) {
+  if (!stars?.length) return null
+
+  return (
+    <div className="mb-3 rounded-md border border-[#F3D6D6] bg-[#FFF5F5] px-4 py-3">
+      <div className="flex gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#D71920] text-sm text-white">
+          <StarFilled />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm leading-5 text-slate-700">
+            We are Recommending the below Stars to choose based on your Date of Birth
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {stars.map((star) => {
+              const isSelected = selectedStarId === String(star.id)
+
+              return (
+                <button
+                  key={star.id}
+                  type="button"
+                  onClick={() => onSelect(String(star.id))}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium text-white transition-colors ${
+                    isSelected ? 'bg-[#D71920]' : 'bg-[#5F6368] hover:bg-[#4A4E52]'
+                  }`}
+                >
+                  {star.value}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function formatName(value) {
@@ -95,6 +140,69 @@ function formatName(value) {
 
   if (!cleaned) return ''
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase()
+}
+
+function flattenErrorPaths(errors, prefix = '') {
+  const paths = new Set()
+
+  Object.entries(errors).forEach(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key
+
+    if (typeof value === 'string') {
+      paths.add(path)
+      return
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (typeof item === 'string') {
+          paths.add(`${path}.${index}`)
+        } else if (item && typeof item === 'object') {
+          flattenErrorPaths(item, `${path}.${index}`).forEach((nestedPath) => paths.add(nestedPath))
+        }
+      })
+      return
+    }
+
+    if (value && typeof value === 'object') {
+      flattenErrorPaths(value, path).forEach((nestedPath) => paths.add(nestedPath))
+    }
+  })
+
+  return paths
+}
+
+function scrollToFirstError(errors, formElement) {
+  if (!errors || !formElement) return
+
+  const errorPaths = flattenErrorPaths(errors)
+  if (errorPaths.size === 0) return
+
+  const fields = formElement.querySelectorAll('input, select, textarea')
+  for (const field of fields) {
+    if (field.name && errorPaths.has(field.name)) {
+      field.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      field.focus({ preventScroll: true })
+      return
+    }
+  }
+
+  const errorMessage = formElement.querySelector('[data-form-error]')
+  errorMessage?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function ScrollToErrorOnSubmit({ errors, submitCount, formRef }) {
+  const lastScrolledSubmitCount = useRef(0)
+
+  useEffect(() => {
+    if (submitCount <= lastScrolledSubmitCount.current) return
+    if (Object.keys(errors).length === 0) return
+
+    lastScrolledSubmitCount.current = submitCount
+    scrollToFirstError(errors, formRef.current)
+  }, [errors, submitCount, formRef])
+
+  return null
 }
 
 export default function RegisterOffline() {
@@ -114,6 +222,12 @@ export default function RegisterOffline() {
   }))
   const [showMobileVerification, setShowMobileVerification] = useState(false)
   const [registeredMobile, setRegisteredMobile] = useState('')
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false)
+  const [starOptionsOverride, setStarOptionsOverride] = useState(null)
+  const [recommendedStars, setRecommendedStars] = useState([])
+  const [isLoadingStarDetail, setIsLoadingStarDetail] = useState(false)
+  const starDetailRequestRef = useRef(0)
+  const formRef = useRef(null)
 
   const validationSchema = useMemo(
     () =>
@@ -165,10 +279,44 @@ export default function RegisterOffline() {
     }
   }, [userId, fromCallingProcess])
 
+  const loadStarDetail = async (motherTongueId, selYear, selMonth, seldate, setFieldValue) => {
+    const dob = formatRegistrationDob(selYear, selMonth, seldate)
+
+    if (!motherTongueId || !dob) {
+      starDetailRequestRef.current += 1
+      setIsLoadingStarDetail(false)
+      setStarOptionsOverride(null)
+      setRecommendedStars([])
+      return
+    }
+
+    const requestId = ++starDetailRequestRef.current
+    setIsLoadingStarDetail(true)
+
+    try {
+      const payload = await fetchStarDetail({ dob, motherTongueId })
+      if (requestId !== starDetailRequestRef.current) return
+
+      setStarOptionsOverride(mapStarDetailToOptions(payload.stars))
+      setRecommendedStars(payload.stars || [])
+      setFieldValue('starId', '')
+    } catch (error) {
+      if (requestId !== starDetailRequestRef.current) return
+      setStarOptionsOverride(null)
+      setRecommendedStars([])
+      message.error(error.message || 'Failed to load star details')
+    } finally {
+      if (requestId === starDetailRequestRef.current) {
+        setIsLoadingStarDetail(false)
+      }
+    }
+  }
+
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
       console.log('Offline registration payload:', values)
       setRegisteredMobile(values.mobileNumber)
+      setIsFormSubmitted(true)
       setShowMobileVerification(true)
       message.success('Offline registration submitted successfully!')
     } catch {
@@ -204,7 +352,7 @@ export default function RegisterOffline() {
         validateOnBlur
         validateOnChange={false}
       >
-        {({ values, setFieldValue, isSubmitting, errors, touched }) => {
+        {({ values, setFieldValue, isSubmitting, errors, touched, submitCount }) => {
           const showDomain = values.religionId === '18'
           const showOtherCaste = getCasteLabel(values.casteId, formOptions.casteOptions) === 'Others'
           const showOtherSubCaste = getSubCasteLabel(
@@ -214,10 +362,21 @@ export default function RegisterOffline() {
           const showChildrenSection = values.maritialStatusId && values.maritialStatusId !== '1'
           const showLivingSection = showChildrenSection && values.noOfChildren && values.noOfChildren !== '0'
           const childrenLivingOptions = getChildrenLivingOptions(values.noOfChildren)
-          const filteredStates = formOptions.stateOptions.filter(
-            (state) => state.countryId === values.countryId,
-          )
-          const filteredCities = formOptions.cityOptions.filter((city) => city.stateId === values.stateId)
+          const starOptions = starOptionsOverride ?? formOptions.starOptions
+
+          const handleDobFieldChange = (field) => (event, form) => {
+            const nextValue = event.target.value
+            form.setFieldValue(field, nextValue)
+
+            const nextValues = { ...form.values, [field]: nextValue }
+            loadStarDetail(
+              nextValues.motherTongueId,
+              nextValues.selYear,
+              nextValues.selMonth,
+              nextValues.seldate,
+              form.setFieldValue,
+            )
+          }
 
           const handleWeightChange = (event) => {
             const nextWeight = event.target.value
@@ -233,7 +392,9 @@ export default function RegisterOffline() {
           }
 
           return (
-            <Form className="space-y-4">
+            <Form className="space-y-4" ref={formRef}>
+              <ScrollToErrorOnSubmit errors={errors} submitCount={submitCount} formRef={formRef} />
+              <fieldset disabled={isFormSubmitted} className="min-w-0 space-y-4 border-0 p-0">
               <div className="rounded-lg bg-white p-5 shadow-sm">
                 <div className="mb-5 flex items-center justify-between gap-3">
                   <SectionHeader title="Basic Information" />
@@ -264,7 +425,22 @@ export default function RegisterOffline() {
                   </FormRow>
 
                   <FormRow label="Mother Tongue" required>
-                    <SelectField name="motherTongueId" placeholder="Select Mother Tongue" options={formOptions.motherTongueOptions} />
+                    <SelectField
+                      name="motherTongueId"
+                      placeholder="Select Mother Tongue"
+                      options={formOptions.motherTongueOptions}
+                      onChange={(event, form) => {
+                        const nextMotherTongueId = event.target.value
+                        form.setFieldValue('motherTongueId', nextMotherTongueId)
+                        loadStarDetail(
+                          nextMotherTongueId,
+                          form.values.selYear,
+                          form.values.selMonth,
+                          form.values.seldate,
+                          form.setFieldValue,
+                        )
+                      }}
+                    />
                     <ErrorText name="motherTongueId" />
                   </FormRow>
 
@@ -451,49 +627,39 @@ export default function RegisterOffline() {
 
                   <FormRow label="Date of birth" required>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <SelectField name="selYear" placeholder="Year" options={DOB_YEARS.map((year) => ({ value: String(year), label: String(year) }))} />
-                      <SelectField name="selMonth" placeholder="Month" options={DOB_MONTHS.map((month) => ({ value: month, label: month }))} />
-                      <SelectField name="seldate" placeholder="Date" options={DOB_DAYS.map((day) => ({ value: String(day), label: String(day) }))} />
+                      <SelectField
+                        name="selYear"
+                        placeholder="Year"
+                        options={DOB_YEARS.map((year) => ({ value: String(year), label: String(year) }))}
+                        onChange={handleDobFieldChange('selYear')}
+                      />
+                      <SelectField
+                        name="selMonth"
+                        placeholder="Month"
+                        options={DOB_MONTHS.map((month) => ({ value: month, label: month }))}
+                        onChange={handleDobFieldChange('selMonth')}
+                      />
+                      <SelectField
+                        name="seldate"
+                        placeholder="Date"
+                        options={DOB_DAYS.map((day) => ({ value: String(day), label: String(day) }))}
+                        onChange={handleDobFieldChange('seldate')}
+                      />
                     </div>
                     {(errors.selYear || errors.selMonth || errors.seldate) && (touched.selYear || touched.selMonth || touched.seldate) && (
                       <p className={errorClass}>Please Select DOB</p>
                     )}
                   </FormRow>
 
-                  <FormRow label="Country of Residence" required>
-                    <SelectField
-                      name="countryId"
-                      placeholder="Select Country"
-                      options={formOptions.countryOptions}
-                      onChange={(event) => {
-                        setFieldValue('countryId', event.target.value)
-                        setFieldValue('stateId', '')
-                        setFieldValue('cityId', '')
-                      }}
-                    />
-                    <ErrorText name="countryId" />
-                  </FormRow>
-
-                  <FormRow label="State of Residence" required>
-                    <SelectField
-                      name="stateId"
-                      placeholder="Select State"
-                      options={filteredStates}
-                      onChange={(event) => {
-                        setFieldValue('stateId', event.target.value)
-                        setFieldValue('cityId', '')
-                      }}
-                    />
-                    <ErrorText name="stateId" />
-                  </FormRow>
-
-                  <FormRow label="City of Residence" required>
-                    <SelectField name="cityId" placeholder="Select City" options={filteredCities} />
-                    <ErrorText name="cityId" />
-                  </FormRow>
+                  <ResidenceLocationFields
+                    countryOptions={formOptions.countryOptions}
+                    countryId={values.countryId}
+                    stateId={values.stateId}
+                    setFieldValue={setFieldValue}
+                  />
 
                   <FormRow label="PinCode" required>
-                    <SelectField name="pincodeId" placeholder="Select Pincode" options={formOptions.pincodeOptions} />
+                    <PincodeSearchField name="pincodeId" placeholder="Enter Pincode (min 3 digits)" />
                     <ErrorText name="pincodeId" />
                   </FormRow>
 
@@ -585,7 +751,17 @@ export default function RegisterOffline() {
                 </div>
                 <div className="space-y-4">
                   <FormRow label="Star">
-                    <SelectField name="starId" placeholder="Select Star" options={formOptions.starOptions} />
+                    <StarRecommendation
+                      stars={recommendedStars}
+                      selectedStarId={values.starId}
+                      onSelect={(starId) => setFieldValue('starId', starId)}
+                    />
+                    <SelectField
+                      name="starId"
+                      placeholder={isLoadingStarDetail ? 'Loading stars...' : 'Select Star'}
+                      options={starOptions}
+                      disabled={isLoadingStarDetail}
+                    />
                   </FormRow>
 
                   <FormRow label="Raasi">
@@ -703,20 +879,23 @@ export default function RegisterOffline() {
                             component="p"
                             className={errorClass}
                           />
+                          {index === values.familyMembers.length - 1 &&
+                            values.familyMembers.length < 5 &&
+                            /^\d{10}$/.test(member.familyMobileNumber || '') &&
+                            member.matRelationshipId && (
+                              <div className="mt-3 flex justify-end">
+                                <CrmButton
+                                  type="button"
+                                  onClick={() =>
+                                    push({ isdCodeFamily: '+91', familyMobileNumber: '', matRelationshipId: '' })
+                                  }
+                                >
+                                  Add Member
+                                </CrmButton>
+                              </div>
+                            )}
                         </div>
                       ))}
-
-                      {values.familyMembers.length < 5 && (
-                        <CrmButton
-                          type="button"
-                          variant="secondary"
-                          onClick={() =>
-                            push({ isdCodeFamily: '+91', familyMobileNumber: '', matRelationshipId: '' })
-                          }
-                        >
-                          Add New Member
-                        </CrmButton>
-                      )}
                     </div>
                   )}
                 </FieldArray>
@@ -736,9 +915,14 @@ export default function RegisterOffline() {
                 />
                 <ErrorText name="more_info" />
               </div>
+              </fieldset>
 
               <div className="flex flex-col items-center pb-4">
-                <CrmButton type="submit" className="min-w-[200px] px-10 py-3 text-base" disabled={isSubmitting}>
+                <CrmButton
+                  type="submit"
+                  className="min-w-[200px] px-10 py-3 text-base"
+                  disabled={isSubmitting || isFormSubmitted}
+                >
                   {isSubmitting ? 'Submitting...' : 'Submit'}
                 </CrmButton>
 

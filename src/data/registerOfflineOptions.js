@@ -55,8 +55,17 @@ export const GOTHRA_OPTIONS = [
   { value: '3', label: 'Vasishta' },
 ]
 
+export const INDIA_COUNTRY_ID = '499'
+const LEGACY_INDIA_COUNTRY_ID = '1'
+
+export function normalizeCountryId(countryId) {
+  if (!countryId && countryId !== 0) return ''
+  const normalized = String(countryId)
+  return normalized === LEGACY_INDIA_COUNTRY_ID ? INDIA_COUNTRY_ID : normalized
+}
+
 export const COUNTRY_OPTIONS = [
-  { value: '1', label: 'India', isdcode: '+91', currency: 'INR' },
+  { value: INDIA_COUNTRY_ID, label: 'India', isdcode: '+91', currency: 'INR' },
   { value: '2', label: 'USA', isdcode: '+1', currency: 'USD' },
   { value: '3', label: 'UK', isdcode: '+44', currency: 'GBP' },
 ]
@@ -77,10 +86,10 @@ export const CHILDREN_OPTIONS = [
 ]
 
 export const STATE_OPTIONS = [
-  { value: '1', label: 'Tamil Nadu', countryId: '1' },
-  { value: '2', label: 'Kerala', countryId: '1' },
-  { value: '3', label: 'Karnataka', countryId: '1' },
-  { value: '4', label: 'Andhra Pradesh', countryId: '1' },
+  { value: '1', label: 'Tamil Nadu', countryId: INDIA_COUNTRY_ID },
+  { value: '2', label: 'Kerala', countryId: INDIA_COUNTRY_ID },
+  { value: '3', label: 'Karnataka', countryId: INDIA_COUNTRY_ID },
+  { value: '4', label: 'Andhra Pradesh', countryId: INDIA_COUNTRY_ID },
 ]
 
 export const CITY_OPTIONS = [
