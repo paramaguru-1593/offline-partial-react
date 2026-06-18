@@ -114,6 +114,7 @@ export default function RegisterOffline() {
   }))
   const [showMobileVerification, setShowMobileVerification] = useState(false)
   const [registeredMobile, setRegisteredMobile] = useState('')
+  const [isFormSubmitted, setIsFormSubmitted] = useState(false)
 
   const validationSchema = useMemo(
     () =>
@@ -169,6 +170,7 @@ export default function RegisterOffline() {
     try {
       console.log('Offline registration payload:', values)
       setRegisteredMobile(values.mobileNumber)
+      setIsFormSubmitted(true)
       setShowMobileVerification(true)
       message.success('Offline registration submitted successfully!')
     } catch {
@@ -234,6 +236,7 @@ export default function RegisterOffline() {
 
           return (
             <Form className="space-y-4">
+              <fieldset disabled={isFormSubmitted} className="min-w-0 space-y-4 border-0 p-0">
               <div className="rounded-lg bg-white p-5 shadow-sm">
                 <div className="mb-5 flex items-center justify-between gap-3">
                   <SectionHeader title="Basic Information" />
@@ -703,20 +706,23 @@ export default function RegisterOffline() {
                             component="p"
                             className={errorClass}
                           />
+                          {index === values.familyMembers.length - 1 &&
+                            values.familyMembers.length < 5 &&
+                            /^\d{10}$/.test(member.familyMobileNumber || '') &&
+                            member.matRelationshipId && (
+                              <div className="mt-3 flex justify-end">
+                                <CrmButton
+                                  type="button"
+                                  onClick={() =>
+                                    push({ isdCodeFamily: '+91', familyMobileNumber: '', matRelationshipId: '' })
+                                  }
+                                >
+                                  Add Member
+                                </CrmButton>
+                              </div>
+                            )}
                         </div>
                       ))}
-
-                      {values.familyMembers.length < 5 && (
-                        <CrmButton
-                          type="button"
-                          variant="secondary"
-                          onClick={() =>
-                            push({ isdCodeFamily: '+91', familyMobileNumber: '', matRelationshipId: '' })
-                          }
-                        >
-                          Add New Member
-                        </CrmButton>
-                      )}
                     </div>
                   )}
                 </FieldArray>
@@ -736,9 +742,14 @@ export default function RegisterOffline() {
                 />
                 <ErrorText name="more_info" />
               </div>
+              </fieldset>
 
               <div className="flex flex-col items-center pb-4">
-                <CrmButton type="submit" className="min-w-[200px] px-10 py-3 text-base" disabled={isSubmitting}>
+                <CrmButton
+                  type="submit"
+                  className="min-w-[200px] px-10 py-3 text-base"
+                  disabled={isSubmitting || isFormSubmitted}
+                >
                   {isSubmitting ? 'Submitting...' : 'Submit'}
                 </CrmButton>
 
