@@ -120,7 +120,7 @@ export default function Login() {
                   value={email}
                   type="email"
                   autoComplete="off"
-                  placeholder="admin@gmail.com"
+                  placeholder="Enter email"
                   className="form-input block w-full rounded-[10px] border border-slate-200 bg-white px-4 py-3.5 text-[14px] text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-300"
                 />
                 {emailError && (

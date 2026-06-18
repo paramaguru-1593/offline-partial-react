@@ -13,8 +13,8 @@ import {
   editOfflineCallAccess,
   fetchOfflineCallAccess,
   fetchOfflineManagement,
-  setFallbackAccess,
-} from '../../features/offlineManagement/offlineManagementSlice'
+} from '../../features/offlineProfile/offlineProfileApi'
+import { setFallbackAccess } from '../../features/offlineProfile/offlineProfileSlice'
 
 const tableHeadClass = 'border-b border-[#E5ECF3] px-6 py-4 text-left text-[10px] font-bold uppercase text-[#607086]'
 const tableCellClass = 'border-b border-[#EEF2F6] px-6 py-4 align-middle text-[13px] text-[#16263B]'
@@ -52,11 +52,11 @@ export default function OfflineCallingManagement({
     access,
     accessStatus,
     editStatus,
-  } = useSelector((state) => state.offlineManagement)
+  } = useSelector((state) => state.offlineProfile.management)
   const [editingRow, setEditingRow] = useState(null)
   const [selectedProcess, setSelectedProcess] = useState([])
   const [isLeadDropdownOpen, setIsLeadDropdownOpen] = useState(false)
-  const [sortConfig, setSortConfig] = useState({ key: 'email', direction: 'asc' })
+  const [sortConfig, setSortConfig] = useState({ key: '', direction: 'asc' })
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [search, setSearch] = useState('')
@@ -74,10 +74,10 @@ export default function OfflineCallingManagement({
 
   const leadOrder = access.leadOrder || []
   const selectedLeadTypes = leadOrder.filter((leadType) =>
-    selectedProcess.includes(leadType.orderNo),
+    selectedProcess.includes(leadType.id),
   )
   const remainingLeadTypes = leadOrder.filter((leadType) =>
-    !selectedProcess.includes(leadType.orderNo),
+    !selectedProcess.includes(leadType.id),
   )
 
   const handleSort = (key) => {
@@ -116,12 +116,12 @@ export default function OfflineCallingManagement({
   }
 
   const addLeadType = (leadType) => {
-    setSelectedProcess((prev) => [...prev, leadType.orderNo])
+    setSelectedProcess((prev) => [...prev, leadType.id])
     setIsLeadDropdownOpen(false)
   }
 
-  const removeLeadType = (leadTypeOrderNo) => {
-    setSelectedProcess((prev) => prev.filter((item) => item !== leadTypeOrderNo))
+  const removeLeadType = (leadTypeId) => {
+    setSelectedProcess((prev) => prev.filter((item) => item !== leadTypeId))
   }
 
   const handleSubmit = async () => {
@@ -190,7 +190,7 @@ export default function OfflineCallingManagement({
                 <SortHeader label="Active" sortKey="active" sortConfig={sortConfig} onSort={handleSort} className="w-[15%]" />
                 <SortHeader label="Language" sortKey="language" sortConfig={sortConfig} onSort={handleSort} className="w-[24%]" />
                 <SortHeader label="Leadtypes" sortKey="leadTypes" sortConfig={sortConfig} onSort={handleSort} className="w-[19%]" />
-                <SortHeader label="Actions" sortKey="actions" sortConfig={sortConfig} onSort={handleSort} className="w-[11%] text-right" />
+                <th className={`${tableHeadClass} w-[11%] text-right`}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -314,7 +314,7 @@ export default function OfflineCallingManagement({
                     ) : selectedLeadTypes.length ? (
                       selectedLeadTypes.map((leadType) => (
                         <span
-                          key={leadType.orderNo}
+                          key={leadType.id}
                           className="inline-flex h-6 items-center gap-1 rounded-sm bg-[#E02020] px-2 text-[12px] font-medium text-white"
                         >
                           <span>{leadType.label}</span>
@@ -323,14 +323,14 @@ export default function OfflineCallingManagement({
                             tabIndex={0}
                             className="text-[14px] leading-none"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              removeLeadType(leadType.orderNo)
-                            }}
+                                e.stopPropagation()
+                                removeLeadType(leadType.id)
+                              }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' || e.key === ' ') {
                                 e.preventDefault()
                                 e.stopPropagation()
-                                removeLeadType(leadType.orderNo)
+                                removeLeadType(leadType.id)
                               }
                             }}
                           >
@@ -348,7 +348,7 @@ export default function OfflineCallingManagement({
                       {remainingLeadTypes.length ? (
                         remainingLeadTypes.map((leadType) => (
                           <button
-                            key={leadType}
+                            key={leadType.id}
                             type="button"
                             className="block w-full px-3 py-2 text-left text-[#333333] hover:bg-[#FFF5E9]"
                             onClick={() => addLeadType(leadType)}

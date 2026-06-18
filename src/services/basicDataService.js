@@ -1,6 +1,5 @@
 import { KALYAN_POST, getResponsePayload } from '../api/apiHelper'
 import ApiEndpoits from '../api/apiEndPoints'
-import { getApiAuthToken } from '../config/api'
 
 const basicDataCache = new Map()
 
@@ -16,9 +15,8 @@ export function clearBasicDataCache(userId) {
   basicDataCache.clear()
 }
 
-export async function fetchBasicData({ userId, token } = {}) {
+export async function fetchBasicData({ userId } = {}) {
   const cacheKey = getCacheKey(userId)
-  const authToken = getApiAuthToken(token)
 
   if (basicDataCache.has(cacheKey)) {
     return basicDataCache.get(cacheKey)
@@ -32,13 +30,6 @@ export async function fetchBasicData({ userId, token } = {}) {
         loginFrom: 'Desktop',
         registerFrom: 'Desktop',
       },
-      authToken
-        ? {
-            headers: {
-              Authorization: `Bearer ${authToken}`,
-            },
-          }
-        : undefined,
     )
 
     const payload = getResponsePayload(response)

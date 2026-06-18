@@ -19,7 +19,7 @@ import {
   fetchOfflineCustomerByLeadType,
   fetchOfflineCustomerByMobile,
   saveOfflineData,
-} from '../../features/offlineCallingProcess/offlineCallingProcessSlice'
+} from '../../features/offlineProfile/offlineProfileApi'
 
 const inputClass =
   'h-10 w-full rounded-md border border-[#E5C1A6] bg-white px-3 text-sm text-[#0F1F35] outline-none focus:border-[#F28B18] focus:ring-1 focus:ring-[#F28B18]'
@@ -82,7 +82,9 @@ export default function OfflineCallingProcess({
     registerCheckStatus,
     status: customerStatus,
     saveStatus,
-  } = useSelector((state) => state.offlineCallingProcess)
+  } = useSelector((state) => state.offlineProfile.callingProcess)
+  const authUser = useSelector((state) => state.auth.user)
+  const admUsersId = authUser?.admUsersId || authUser?.id
   const [isInsertOpen, setIsInsertOpen] = useState(false)
   const [mobileNumber, setMobileNumber] = useState('')
   const [leadType, setLeadType] = useState('fresh')
@@ -109,8 +111,10 @@ export default function OfflineCallingProcess({
   const [insertErrors, setInsertErrors] = useState({})
 
   useEffect(() => {
-    dispatch(fetchDialerList('1'))
-  }, [dispatch])
+    if (admUsersId) {
+      dispatch(fetchDialerList(admUsersId))
+    }
+  }, [admUsersId, dispatch])
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -148,7 +152,15 @@ export default function OfflineCallingProcess({
     setInsertErrors((prev) => ({ ...prev, [field]: '' }))
   }
 
+  const hasUserId = () => {
+    if (admUsersId) return true
+    message.error('User details not available. Please login again.')
+    return false
+  }
+
   const handleInsertSubmit = async () => {
+    if (!hasUserId()) return
+
     const errors = {}
 
     if (!insertForm.name.trim()) {
@@ -176,7 +188,7 @@ export default function OfflineCallingProcess({
     if (Object.keys(errors).length) return
 
     const payload = {
-      admUsersId: 1,
+      admUsersId,
       motherTongueId: insertForm.motherTongue,
       mobileNumber1: insertForm.mobileNumber1,
       mobileNumber2: insertForm.mobileNumber2 || '',
@@ -246,6 +258,8 @@ export default function OfflineCallingProcess({
   }
 
   const handleSearchByMobile = async () => {
+    if (!hasUserId()) return
+
     if (mobileNumber.length !== 10) {
       message.error('Please enter a valid 10-digit mobile number')
       return
@@ -253,22 +267,26 @@ export default function OfflineCallingProcess({
 
     await dispatch(fetchOfflineCustomerByMobile({
       mobilenumber: mobileNumber,
-      admUsersId: 1,
+      admUsersId,
     }))
     showCustomerDetails()
   }
 
   const handleShowResults = async () => {
+    if (!hasUserId()) return
+
     await dispatch(fetchOfflineCustomerByLeadType({
       typecategory: leadTypeApiValues[leadType] || leadType,
       languagechoosen: 'Tamil',
-      admUsersId: 1,
+      admUsersId,
     }))
     showCustomerDetails()
   }
 
   const handleFetchCustomer = async () => {
-    await dispatch(fetchOfflineCustomer(1))
+    if (!hasUserId()) return
+
+    await dispatch(fetchOfflineCustomer(admUsersId))
     showCustomerDetails()
   }
 
@@ -330,18 +348,22 @@ export default function OfflineCallingProcess({
 
   const getRegistrationMobile = () => customer?.mobileNumber1 || mobileNumber
 
+  const openRegisterOfflineTab = (registrationMobile) => {
+    window.open(`/crm/register-offline?mobile=${registrationMobile}`, '_blank', 'noopener,noreferrer')
+  }
+
   const handleSubmitResponse = () => {
     message.success('Response submitted successfully.')
   }
 
   const handleOutcomeSelect = (item) => {
-    if (item === REGISTER_OUTCOME) {
+    if (item === registerOutcome) {
       const registrationMobile = getRegistrationMobile()
       if (registrationMobile.length !== 10) {
         message.error('Please enter a valid 10-digit mobile number before registering')
         return
       }
-      setSelectedOutcome(REGISTER_OUTCOME)
+      setSelectedOutcome(registerOutcome)
       openRegisterOfflineTab(registrationMobile)
       return
     }

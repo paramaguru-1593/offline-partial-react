@@ -3,7 +3,9 @@ import Constants from '../utils/constants'
 import ApiEndpoits from './apiEndPoints'
 import { clearAuthStoragePreservingDeviceId } from '../utils/utils'
 
-const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const configuredApiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const apiBaseUrl = import.meta.env.DEV ? '' : configuredApiBaseUrl
+const rootBaseUrl = import.meta.env.DEV ? '/' : apiBaseUrl
 const kalyanBaseUrl = (
   import.meta.env.VITE_KALYAN_API_URL || 'https://v3-uat.kalyanmatrimony.com/api'
 ).replace(/\/$/, '')
@@ -14,6 +16,8 @@ const configBaseUrl = (
 function attachAuthInterceptor(client, getDefaultAuthHeader) {
   client.interceptors.request.use(
     (config) => {
+      const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData
+
       if (!config.headers?.Authorization) {
         const authHeader = getDefaultAuthHeader()
         if (authHeader) {
@@ -24,6 +28,12 @@ function attachAuthInterceptor(client, getDefaultAuthHeader) {
         }
       }
 
+      config.headers = {
+        ...config.headers,
+        Accept: 'application/json',
+        ...(!isFormData && { 'Content-Type': 'application/json' }),
+      }
+
       return config
     },
     (error) => Promise.reject(error),
@@ -32,6 +42,10 @@ function attachAuthInterceptor(client, getDefaultAuthHeader) {
 
 const instance = axios.create({
   baseURL: `${apiBaseUrl}/api`,
+})
+
+const rootInstance = axios.create({
+  baseURL: rootBaseUrl,
 })
 
 const kalyanInstance = axios.create({
@@ -49,13 +63,11 @@ function getCrmAuthHeader() {
 }
 
 function getKalyanAuthHeader() {
-  const token =
-    import.meta.env.VITE_KALYAN_API_TOKEN ||
-    localStorage.getItem(Constants.localStorageKey.accessToken)
-  return token ? `Bearer ${token}` : null
+  return getCrmAuthHeader()
 }
 
 attachAuthInterceptor(kalyanInstance, getKalyanAuthHeader)
+attachAuthInterceptor(rootInstance, getCrmAuthHeader)
 
 let isUnauthorizedLogoutInProgress = false
 
@@ -92,6 +104,7 @@ const handleUnauthorizedLogout = async () => {
 instance.interceptors.request.use(
   (config) => {
     const authHeader = getCrmAuthHeader()
+    const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData
 
     if (config.url === '/api/storeCandidates') {
       if (authHeader) {
@@ -105,8 +118,8 @@ instance.interceptors.request.use(
       config.headers = {
         ...config.headers,
         Authorization: authHeader,
-        'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...(!isFormData && { 'Content-Type': 'application/json' }),
       }
     }
 
@@ -121,8 +134,9 @@ instance.interceptors.response.use(
     const status = error?.response?.status
     const requestUrl = error?.config?.url || ''
     const isLogoutApi = requestUrl.includes(ApiEndpoits.logout)
+    const isLoginApi = requestUrl.includes(ApiEndpoits.login)
 
-    if (status === 401 && !isLogoutApi) {
+    if (status === 401 && !isLogoutApi && !isLoginApi) {
       handleUnauthorizedLogout()
     }
 
@@ -141,6 +155,10 @@ const request = (client, method, url, data, config) => {
 export const GET = (url, config) => request(instance, 'get', url, undefined, config)
 
 export const POST = (url, data, config) => request(instance, 'post', url, data, config)
+
+export const ROOT_GET = (url, config) => request(rootInstance, 'get', url, undefined, config)
+
+export const ROOT_POST = (url, data, config) => request(rootInstance, 'post', url, data, config)
 
 export const KALYAN_GET = (url, config) => request(kalyanInstance, 'get', url, undefined, config)
 

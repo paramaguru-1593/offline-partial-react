@@ -1,56 +1,10 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
+import ApiEndpoits from '../../api/apiEndPoints'
+import { ROOT_POST } from '../../api/apiHelper'
+import Constants from '../../utils/constants'
+import { clearAuthStoragePreservingDeviceId } from '../../utils/utils'
 
 const AUTH_STORAGE_KEY = 'crm_auth'
-
-const fallbackAdminLogin = {
-  email: 'admin@gmail.com',
-  password: '12345',
-}
-
-const fallbackAdminData = {
-  access_token: 'fallback-admin-token',
-  processes: [
-    {
-      cs_processid: 32,
-      label: 'Offline Profile',
-      url: 'offlineprofile',
-    },
-    {
-      cs_processid: 33,
-      label: 'Offline Registration Calling Process',
-      url: 'offlinecalling',
-    },
-    {
-      cs_processid: 44,
-      label: 'Offline Call Report',
-      url: 'getofflinecallreport',
-    },
-    {
-      cs_processid: 45,
-      label: 'Offline Calling Management',
-      url: 'getofflinemanagement',
-    },
-    {
-      cs_processid: 46,
-      label: 'Data Team Report',
-      url: 'datateamreport',
-    },
-    {
-      cs_processid: 47,
-      label: 'Profile CRM',
-      url: 'profilecrm',
-    },
-  ],
-  incentive: 0,
-  expires_at: '',
-  role: 'Outbound Calls',
-  logouttime: '',
-  agent_email: 'admin@gmail.com',
-  language: 'Tamil',
-  admUsersId: 1,
-  id: 1,
-  token_type: 'Bearer',
-}
 
 const emptyState = {
   isAuthenticated: false,
@@ -101,25 +55,39 @@ function persistAuthState(state) {
   localStorage.removeItem(AUTH_STORAGE_KEY)
 }
 
+function clearAuthState(state) {
+  state.isAuthenticated = false
+  state.user = null
+  state.token = null
+  state.processes = []
+  state.loginStatus = 'idle'
+  state.loginError = ''
+  clearAuthStoragePreservingDeviceId()
+}
+
+function persistCrmToken(data) {
+  if (!data) return
+
+  if (data.access_token) {
+    localStorage.setItem(Constants.localStorageKey.accessToken, data.access_token)
+  }
+
+  if (data.token_type) {
+    localStorage.setItem(Constants.localStorageKey.tokenType, data.token_type)
+  }
+
+  const userId = data.admUsersId || data.id
+  if (userId) {
+    localStorage.setItem(Constants.localStorageKey.userId, String(userId))
+  }
+}
+
 export const loginUser = createAsyncThunk(
   'auth/loginUser',
   async ({ email, password }, { rejectWithValue }) => {
     try {
-      const baseUrl = (import.meta.env.VITE_API_URL || '').trim()
-      const response = await fetch(`${baseUrl}/api/login`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`)
-      }
-
-      const result = await response.json()
+      const response = await ROOT_POST(ApiEndpoits.login, { email, password })
+      const result = response?.data
 
       if (result?.status !== 'Success' || !result?.data?.access_token) {
         throw new Error(result?.message || 'Invalid email or password')
@@ -127,14 +95,25 @@ export const loginUser = createAsyncThunk(
 
       return result.data
     } catch (error) {
-      if (
-        email.trim().toLowerCase() === fallbackAdminLogin.email &&
-        password === fallbackAdminLogin.password
-      ) {
-        return fallbackAdminData
+      return rejectWithValue(error.message || 'Invalid email or password')
+    }
+  },
+)
+
+export const logoutUser = createAsyncThunk(
+  'auth/logoutUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await ROOT_POST(ApiEndpoits.logout)
+      const result = response?.data
+
+      if (result?.status !== 'Success') {
+        throw new Error(result?.message || 'Unable to logout')
       }
 
-      return rejectWithValue(error.message || 'Invalid email or password')
+      return result.data
+    } catch (error) {
+      return rejectWithValue(error.message || 'Unable to logout')
     }
   },
 )
@@ -153,13 +132,7 @@ const authSlice = createSlice({
       persistAuthState(state)
     },
     logout: (state) => {
-      state.isAuthenticated = false
-      state.user = null
-      state.token = null
-      state.processes = []
-      state.loginStatus = 'idle'
-      state.loginError = ''
-      persistAuthState(state)
+      clearAuthState(state)
     },
   },
   extraReducers: (builder) => {
@@ -170,6 +143,7 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         const data = action.payload
+        persistCrmToken(data)
 
         state.isAuthenticated = true
         state.user = {
@@ -197,6 +171,12 @@ const authSlice = createSlice({
         state.loginStatus = 'failed'
         state.loginError = action.payload || action.error.message || 'Invalid email or password'
         persistAuthState(state)
+      })
+      .addCase(logoutUser.fulfilled, (state) => {
+        clearAuthState(state)
+      })
+      .addCase(logoutUser.rejected, (state) => {
+        clearAuthState(state)
       })
   },
 })

@@ -35,11 +35,15 @@ function getLanguageData(row, language) {
 
 export default function DataTeamReport() {
   const dispatch = useDispatch()
+  const authUser = useSelector((state) => state.auth.user)
+  const admusersId = authUser?.admUsersId || authUser?.id
   const { rows, status, isFallback } = useSelector((state) => state.dataTeamReport)
 
   useEffect(() => {
-    dispatch(fetchDataTeamReport(301666))
-  }, [dispatch])
+    if (admusersId) {
+      dispatch(fetchDataTeamReport(admusersId))
+    }
+  }, [admusersId, dispatch])
 
   return (
     <div>
@@ -100,27 +104,18 @@ export default function DataTeamReport() {
           {status === 'loading'
             ? 'Loading data team report...'
             : isFallback
-              ? 'Showing static records until API response is available.'
+              ? 'No API records available.'
               : `Showing ${rows.length} data team record${rows.length === 1 ? '' : 's'}.`}
         </p>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
+        {/* <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
             Live Updating
             <span className="text-slate-400">Last updated: May 27, 16:59:22</span>
           </div>
-          {/* <div className="flex gap-3">
-            <div className="flex gap-1">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">V</span>
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">B</span>
-            </div>
-            <div className="flex gap-1">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">V</span>
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">B</span>
-            </div>
-          </div> */}
-        </div>
+          
+        </div> */}
       </div>
     </div>
   )

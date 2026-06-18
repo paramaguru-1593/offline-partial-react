@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { Button, Card, Typography, Space } from 'antd'
 import { LogoutOutlined, UserOutlined } from '@ant-design/icons'
-import { logout } from '../features/auth/authSlice'
+import { logoutUser } from '../features/auth/authSlice'
 import { selectUser } from '../features/auth/authSelectors'
 
 const { Title, Text } = Typography
@@ -12,8 +12,8 @@ export default function Dashboard() {
   const dispatch = useDispatch()
   const user = useSelector(selectUser)
 
-  const handleLogout = () => {
-    dispatch(logout())
+  const handleLogout = async () => {
+    await dispatch(logoutUser())
     navigate('/login', { replace: true })
   }
 

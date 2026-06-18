@@ -6,10 +6,11 @@ import * as XLSX from 'xlsx'
 import CrmButton from '../../components/crm/CrmButton'
 import {
   checkLeadAvailability,
+  downloadOfflineProfileUploadResult,
   fetchOfflineProfile,
   submitOfflineProfile,
   uploadOfflineProfileFile,
-} from '../../features/offlineProfile/offlineProfileSlice'
+} from '../../features/offlineProfile/offlineProfileApi'
 
 const inputClass =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#F28B18] focus:ring-1 focus:ring-[#F28B18]'
@@ -38,6 +39,11 @@ const INITIAL_MOBILE_VALIDATION = {
   mobile: { status: '', message: '' },
   alternateMobile: { status: '', message: '' },
 }
+
+const createInitialMobileValidation = () => ({
+  mobile: { status: '', message: '' },
+  alternateMobile: { status: '', message: '' },
+})
 
 
 
@@ -155,6 +161,8 @@ async function validateBulkFile(file) {
 export default function OfflineProfiles() {
   const dispatch = useDispatch()
   const { data: offlineProfileData, submitStatus, bulkUploadStatus } = useSelector((state) => state.offlineProfile)
+  const authUser = useSelector((state) => state.auth.user)
+  const admUsersId = authUser?.admUsersId || authUser?.id
   const fileInputRef = useRef(null)
   const [form, setForm] = useState(INITIAL_FORM)
   const [formErrors, setFormErrors] = useState({})
@@ -168,8 +176,10 @@ export default function OfflineProfiles() {
   const motherTongueOptions = offlineProfileData.motherTons || []
 
   useEffect(() => {
-    dispatch(fetchOfflineProfile(301666))
-  }, [dispatch])
+    if (admUsersId) {
+      dispatch(fetchOfflineProfile(admUsersId))
+    }
+  }, [admUsersId, dispatch])
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -198,6 +208,15 @@ export default function OfflineProfiles() {
     }))
   }
 
+  const resetProfileForm = () => {
+    setForm({ ...INITIAL_FORM })
+    setFormErrors({})
+    setMobileValidation(createInitialMobileValidation())
+  }
+
+  const isLeadAvailableForSubmit = (data) =>
+    data?.profileStatus === 'N' && data?.leadStatus === 'N'
+
   const buildMobileValidationMessage = (field, data) => {
     if (field === 'mobile' && data.isDndMobile1 === 'Yes') {
       return { status: 'error', message: 'DND - Unable to add Mobile Number' }
@@ -211,11 +230,44 @@ export default function OfflineProfiles() {
       return { status: 'error', message: `Profile ID ${data.profileId} already exists` }
     }
 
-    if (data.profileStatus === 'N' || data.leadStatus === 'N') {
+    if (isLeadAvailableForSubmit(data)) {
       return { status: 'success', message: 'Mobile number is valid' }
     }
 
-    return { status: 'error', message: 'Unable to validate mobile number' }
+    if (data.profileStatus !== 'N') {
+      return { status: 'error', message: 'Profile already available in site' }
+    }
+
+    if (data.leadStatus !== 'N') {
+      return { status: 'error', message: 'Lead already exists' }
+    }
+
+    return { status: 'error', message: 'Mobile number is not eligible to submit' }
+  }
+
+  const validateMobileAvailability = async (field) => {
+    const mobileNumber = form[field].trim()
+
+    if (!mobileNumber || mobileNumber.length !== 10) {
+      setMobileValidationMessage(field, '', '')
+      return true
+    }
+
+    setMobileValidationMessage(field, 'checking', 'Checking mobile number...')
+
+    try {
+      const data = await dispatch(checkLeadAvailability({ field, mobileNumber })).unwrap()
+      const validation = buildMobileValidationMessage(field, data)
+      setMobileValidationMessage(field, validation.status, validation.message)
+      return validation.status === 'success'
+    } catch (error) {
+      setMobileValidationMessage(
+        field,
+        'error',
+        error || 'Unable to validate mobile number',
+      )
+      return false
+    }
   }
 
   const handleMobileBlur = async (field) => {
@@ -226,19 +278,7 @@ export default function OfflineProfiles() {
       return
     }
 
-    setMobileValidationMessage(field, 'checking', 'Checking mobile number...')
-
-    try {
-      const data = await dispatch(checkLeadAvailability({ field, mobileNumber })).unwrap()
-      const validation = buildMobileValidationMessage(field, data)
-      setMobileValidationMessage(field, validation.status, validation.message)
-    } catch (error) {
-      setMobileValidationMessage(
-        field,
-        'error',
-        error || 'Unable to validate mobile number',
-      )
-    }
+    await validateMobileAvailability(field)
   }
 
   const handleSaveProfile = async (e) => {
@@ -248,9 +288,25 @@ export default function OfflineProfiles() {
 
     if (Object.keys(errors).length) return
 
+    if (!admUsersId) {
+      message.error('User details not available. Please login again.')
+      return
+    }
+
+    const isMobileAvailable = await validateMobileAvailability('mobile')
+    const isAlternateMobileAvailable = form.alternateMobile.trim()
+      ? await validateMobileAvailability('alternateMobile')
+      : true
+
+    if (!isMobileAvailable || !isAlternateMobileAvailable) {
+      message.error('Profile status and lead status must both be N to submit.')
+      return
+    }
+
     try {
       await dispatch(
         submitOfflineProfile({
+          admUsersId,
           motherTongueId: form.motherTongue,
           mobileNumber1: form.mobile,
           mobileNumber2: form.alternateMobile,
@@ -262,9 +318,7 @@ export default function OfflineProfiles() {
       ).unwrap()
 
       message.success('Profile saved successfully!')
-      setForm(INITIAL_FORM)
-      setFormErrors({})
-      setMobileValidation(INITIAL_MOBILE_VALIDATION)
+      resetProfileForm()
     } catch (error) {
       message.error(error || 'Unable to submit offline profile')
     }
@@ -300,13 +354,18 @@ export default function OfflineProfiles() {
       return
     }
 
+    if (!admUsersId) {
+      setBulkError('User details not available. Please login again.')
+      return
+    }
+
     try {
       await validateBulkFile(bulkFile)
       const leadType = LEAD_TYPE_API_VALUES[bulkLeadType]
       const result = await dispatch(uploadOfflineProfileFile({
         file: bulkFile,
         leadType,
-        admUsersId: 301666,
+        admUsersId,
       })).unwrap()
       setUploadResult({
         successCount: result.insertSummary.successCount,
@@ -330,22 +389,18 @@ export default function OfflineProfiles() {
     const leadType = uploadResult?.leadType || 'offline'
 
     try {
-      const baseUrl = (import.meta.env.VITE_API_URL || '').trim()
-      const response = await fetch(`${baseUrl}/fileupload/download?leadType=${encodeURIComponent(leadType)}`, {
-        method: 'GET',
-      })
+      const response = await downloadOfflineProfileUploadResult(leadType)
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(errorText || `Request failed with status ${response.status}`)
+      if (!response || response.status >= 400) {
+        throw new Error(response?.data || `Request failed with status ${response?.status}`)
       }
 
-      const blob = await response.blob()
+      const blob = response.data
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
 
       link.href = url
-      link.download = getDownloadFileName(response.headers.get('Content-Disposition'), leadType)
+      link.download = getDownloadFileName(response.headers?.['content-disposition'], leadType)
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -517,7 +572,7 @@ export default function OfflineProfiles() {
       <div className="mt-5 rounded-lg bg-[#F0F1F3] p-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:gap-5">
           <div className="min-w-0 flex-1">
-            <label className={labelClass}>Bulk Import (.csv / .xls / .xlsx)</label>
+            <label className={labelClass}>Bulk Import (.csv)</label>
             <div
               role="button"
               tabIndex={0}
@@ -551,7 +606,7 @@ export default function OfflineProfiles() {
               onChange={handleFileChange}
             />
             <p className="mt-1 text-xs text-slate-400">
-              Supported formats: .csv, .xls, .xlsx
+              Only upload .csv file formats
             </p>
           </div>
           <div className="flex shrink-0 lg:self-center">

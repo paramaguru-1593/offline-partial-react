@@ -1,66 +1,9 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
-
-export const fallbackDataTeamReport = [
-  {
-    admUsersId: 1,
-    name: 'admin@gmail.com',
-    totalLeadInserted: 0,
-    tamilLeadInserted: 0,
-    teluguLeadInserted: 0,
-    malayalamLeadInserted: 0,
-    kannadaLeadInserted: 0,
-    hindiLeadInserted: 0,
-    totalCrmUploaded: 22,
-    tamilCrmUploaded: 13,
-    teluguCrmUploaded: 3,
-    malayalamCrmUploaded: 3,
-    kannadaCrmUploaded: 2,
-    hindiCrmUploaded: 1,
-    totalProfileIdAlreadyExisted: 0,
-    tamilProfileIdAlreadyExisted: 0,
-    teluguProfileIdAlreadyExisted: 0,
-    malayalamProfileIdAlreadyExisted: 0,
-    kannadaProfileIdAlreadyExisted: 0,
-    hindiProfileIdAlreadyExisted: 0,
-    totalLeadExisted: 0,
-    tamilLeadExisted: 0,
-    teluguLeadExisted: 0,
-    malayalamLeadExisted: 0,
-    kannadaLeadExisted: 0,
-    hindiLeadExisted: 0,
-  },
-  {
-    admUsersId: 45800106,
-    name: 'revathy@kalyanmatrimony.com',
-    totalLeadInserted: 0,
-    tamilLeadInserted: 0,
-    teluguLeadInserted: 0,
-    malayalamLeadInserted: 0,
-    kannadaLeadInserted: 0,
-    hindiLeadInserted: 0,
-    totalCrmUploaded: 22,
-    tamilCrmUploaded: 13,
-    teluguCrmUploaded: 3,
-    malayalamCrmUploaded: 3,
-    kannadaCrmUploaded: 2,
-    hindiCrmUploaded: 1,
-    totalProfileIdAlreadyExisted: 0,
-    tamilProfileIdAlreadyExisted: 0,
-    teluguProfileIdAlreadyExisted: 0,
-    malayalamProfileIdAlreadyExisted: 0,
-    kannadaProfileIdAlreadyExisted: 0,
-    hindiProfileIdAlreadyExisted: 0,
-    totalLeadExisted: 0,
-    tamilLeadExisted: 0,
-    teluguLeadExisted: 0,
-    malayalamLeadExisted: 0,
-    kannadaLeadExisted: 0,
-    hindiLeadExisted: 0,
-  },
-]
+import ApiEndpoits from '../../api/apiEndPoints'
+import { ROOT_GET } from '../../api/apiHelper'
 
 const initialState = {
-  rows: fallbackDataTeamReport,
+  rows: [],
   status: 'idle',
   error: '',
   isFallback: true,
@@ -68,21 +11,12 @@ const initialState = {
 
 export const fetchDataTeamReport = createAsyncThunk(
   'dataTeamReport/fetchDataTeamReport',
-  async (admusersId = 301666, { rejectWithValue }) => {
+  async (admusersId, { rejectWithValue }) => {
     try {
-      const baseUrl = (import.meta.env.VITE_API_URL || '').trim()
-      const response = await fetch(`${baseUrl}/datateamreport?admusersId=${admusersId}`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
+      const response = await ROOT_GET(ApiEndpoits.dataTeamReport, {
+        params: { admusersId },
       })
-
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`)
-      }
-
-      const result = await response.json()
+      const result = response?.data
 
       if (result?.status !== 'Success' || !Array.isArray(result?.data)) {
         throw new Error(result?.message || 'Unable to fetch data team report')
@@ -113,7 +47,7 @@ const dataTeamReportSlice = createSlice({
       })
       .addCase(fetchDataTeamReport.rejected, (state, action) => {
         state.status = 'failed'
-        state.rows = fallbackDataTeamReport
+        state.rows = []
         state.error = action.payload || action.error.message || 'Unable to fetch data team report'
         state.isFallback = true
       })

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { LogoutOutlined } from '@ant-design/icons'
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
-import { logout } from '../../features/auth/authSlice'
+import { logoutUser } from '../../features/auth/authSlice'
 import { selectUser } from '../../features/auth/authSelectors'
 import Images from '../../Images'
 
@@ -14,8 +14,8 @@ export default function Header() {
   const displayName = user?.name || 'Deepak'
   const initial = displayName.charAt(0).toUpperCase()
 
-  const handleLogout = () => {
-    dispatch(logout())
+  const handleLogout = async () => {
+    await dispatch(logoutUser())
     navigate('/login', { replace: true })
   }
 
