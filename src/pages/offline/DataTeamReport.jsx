@@ -1,41 +1,46 @@
+import { useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import PageHeader from '../../components/crm/PageHeader'
+import { fetchDataTeamReport } from '../../features/dataTeamReport/dataTeamReportSlice'
 
 const LANGUAGES = ['Total', 'Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi']
 const LANG_COLORS = {
-  Total: 'bg-slate-200',
-  Tamil: 'bg-orange-100',
-  Malayalam: 'bg-blue-100',
-  Telugu: 'bg-green-100',
-  Kannada: 'bg-pink-100',
-  Hindi: 'bg-red-100',
+  Total: 'bg-[#F1F5F9]',
+  Tamil: 'bg-[#FFF7ED]',
+  Malayalam: 'bg-[#EFF6FF]',
+  Telugu: 'bg-[#F0FDF4]',
+  Kannada: 'bg-[#FAF5FF]',
+  Hindi: 'bg-[#FEF2F2]',
 }
 
-const agents = [
-  {
-    name: 'John Doe',
-    data: {
-      Total: { insert: 120, exit: 45, profileExit: 30, crmUploaded: 250 },
-      Tamil: { insert: 40, exit: 15, profileExit: 10, crmUploaded: 80 },
-      Malayalam: { insert: 20, exit: 8, profileExit: 5, crmUploaded: 40 },
-      Telugu: { insert: 25, exit: 10, profileExit: 6, crmUploaded: 50 },
-      Kannada: { insert: 18, exit: 6, profileExit: 4, crmUploaded: 35 },
-      Hindi: { insert: 17, exit: 6, profileExit: 5, crmUploaded: 45 },
-    },
-  },
-  {
-    name: 'Sarah Smith',
-    data: {
-      Total: { insert: 100, exit: 38, profileExit: 25, crmUploaded: 208 },
-      Tamil: { insert: 35, exit: 12, profileExit: 8, crmUploaded: 70 },
-      Malayalam: { insert: 18, exit: 7, profileExit: 4, crmUploaded: 35 },
-      Telugu: { insert: 22, exit: 9, profileExit: 5, crmUploaded: 45 },
-      Kannada: { insert: 15, exit: 5, profileExit: 4, crmUploaded: 30 },
-      Hindi: { insert: 10, exit: 5, profileExit: 4, crmUploaded: 28 },
-    },
-  },
-]
+const FIELD_PREFIX = {
+  Total: 'total',
+  Tamil: 'tamil',
+  Malayalam: 'malayalam',
+  Telugu: 'telugu',
+  Kannada: 'kannada',
+  Hindi: 'hindi',
+}
+
+function getLanguageData(row, language) {
+  const prefix = FIELD_PREFIX[language]
+
+  return {
+    insert: row[`${prefix}LeadInserted`] || 0,
+    exit: row[`${prefix}LeadExisted`] || 0,
+    profileExit: row[`${prefix}ProfileIdAlreadyExisted`] || 0,
+    crmUploaded: row[`${prefix}CrmUploaded`] || 0,
+  }
+}
 
 export default function DataTeamReport() {
+  const dispatch = useDispatch()
+  const { rows, status, isFallback } = useSelector((state) => state.dataTeamReport)
+
+  useEffect(() => {
+    dispatch(fetchDataTeamReport(301666))
+  }, [dispatch])
+
   return (
     <div>
       <PageHeader
@@ -47,7 +52,7 @@ export default function DataTeamReport() {
         <table className="w-full min-w-[1200px] border-collapse text-sm">
           <thead>
             <tr>
-              <th rowSpan={2} className="border border-slate-200 bg-blue-100 px-3 py-2 text-left text-xs font-semibold uppercase">
+              <th rowSpan={2} className="border border-slate-200 bg-[rgba(203, 219, 245, 0.2)] px-3 py-2 text-left text-xs font-semibold uppercase">
                 Agent Name
               </th>
               {LANGUAGES.map((lang) => (
@@ -74,11 +79,11 @@ export default function DataTeamReport() {
             </tr>
           </thead>
           <tbody>
-            {agents.map((agent) => (
-              <tr key={agent.name} className="hover:bg-slate-50">
+            {rows.map((agent) => (
+              <tr key={agent.admUsersId || agent.name} className="hover:bg-slate-50">
                 <td className="border border-slate-200 px-3 py-2 font-medium">{agent.name}</td>
                 {LANGUAGES.flatMap((lang) => {
-                  const d = agent.data[lang]
+                  const d = getLanguageData(agent, lang)
                   return [
                     <td key={`${agent.name}-${lang}-insert`} className="border border-slate-200 px-2 py-2 text-center text-xs">{d.insert}</td>,
                     <td key={`${agent.name}-${lang}-exit`} className="border border-slate-200 px-2 py-2 text-center text-xs">{d.exit}</td>,
@@ -91,7 +96,13 @@ export default function DataTeamReport() {
           </tbody>
         </table>
 
-        <p className="px-4 py-3 text-sm text-slate-400">No additional agent records found for this period.</p>
+        <p className="px-4 py-3 text-sm text-slate-400">
+          {status === 'loading'
+            ? 'Loading data team report...'
+            : isFallback
+              ? 'Showing static records until API response is available.'
+              : `Showing ${rows.length} data team record${rows.length === 1 ? '' : 's'}.`}
+        </p>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -99,7 +110,7 @@ export default function DataTeamReport() {
             Live Updating
             <span className="text-slate-400">Last updated: May 27, 16:59:22</span>
           </div>
-          <div className="flex gap-3">
+          {/* <div className="flex gap-3">
             <div className="flex gap-1">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">V</span>
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">B</span>
@@ -108,7 +119,7 @@ export default function DataTeamReport() {
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">V</span>
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">B</span>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>

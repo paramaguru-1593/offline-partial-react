@@ -20,13 +20,13 @@ export const OFFLINE_MODULES = [
     icon: 'OfflineCallReport',
     iconSelect: 'OfflineCallReportSelect',
   },
-  {
-    key: 'offline-call-lead-order',
-    label: 'Offline Call Lead Order',
-    path: '/crm/offline-call-lead-order',
-    icon: 'OfflineCallOrder',
-    iconSelect: 'OfflineCallOrderSelect',
-  },
+  // {
+  //   key: 'offline-call-lead-order',
+  //   label: 'Offline Call Lead Order',
+  //   path: '/crm/offline-call-lead-order',
+  //   icon: 'OfflineCallOrder',
+  //   iconSelect: 'OfflineCallOrderSelect',
+  // },
   {
     key: 'offline-calling-management',
     label: 'Offline Calling Management',
@@ -34,13 +34,13 @@ export const OFFLINE_MODULES = [
     icon: 'OfflineManage',
     iconSelect: 'OfflineManageSelect',
   },
-  {
-    key: 'offline-bucket',
-    label: 'Offline Bucket',
-    path: '/crm/offline-bucket',
-    icon: 'OfflineBucket',
-    iconSelect: 'OfflineBucketSelect',
-  },
+  // {
+  //   key: 'offline-bucket',
+  //   label: 'Offline Bucket',
+  //   path: '/crm/offline-bucket',
+  //   icon: 'OfflineBucket',
+  //   iconSelect: 'OfflineBucketSelect',
+  // },
   {
     key: 'data-team-report',
     label: 'Data Team Report',

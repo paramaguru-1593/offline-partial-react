@@ -8,9 +8,9 @@ import { DEFAULT_CRM_PATH } from '../config/navigation'
 import OfflineProfiles from '../pages/offline/OfflineProfiles'
 import OfflineCallingProcess from '../pages/offline/OfflineCallingProcess'
 import OfflineCallReport from '../pages/offline/OfflineCallReport'
-import OfflineCallLeadOrder from '../pages/offline/OfflineCallLeadOrder'
+// import OfflineCallLeadOrder from '../pages/offline/OfflineCallLeadOrder'
 import OfflineCallingManagement from '../pages/offline/OfflineCallingManagement'
-import OfflineBucket from '../pages/offline/OfflineBucket'
+// import OfflineBucket from '../pages/offline/OfflineBucket'
 import DataTeamReport from '../pages/offline/DataTeamReport'
 import RegisterOffline from '../pages/offline/RegisterOffline'
 
@@ -36,9 +36,9 @@ export default function AppRoutes() {
             <Route path="/crm/offline-calling-process" element={<OfflineCallingProcess />} />
             <Route path="/crm/register-offline" element={<RegisterOffline />} />
             <Route path="/crm/offline-call-report" element={<OfflineCallReport />} />
-            <Route path="/crm/offline-call-lead-order" element={<OfflineCallLeadOrder />} />
+            {/* <Route path="/crm/offline-call-lead-order" element={<OfflineCallLeadOrder />} /> */}
             <Route path="/crm/offline-calling-management" element={<OfflineCallingManagement />} />
-            <Route path="/crm/offline-bucket" element={<OfflineBucket />} />
+            {/* <Route path="/crm/offline-bucket" element={<OfflineBucket />} /> */}
             <Route path="/crm/data-team-report" element={<DataTeamReport />} />
             <Route path="/crm/partial-registration-calling" element={<PartialRegistrationCalling />} />
             <Route path="/crm/partial-call-report" element={<PartialCallReport />} />

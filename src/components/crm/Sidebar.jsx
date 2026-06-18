@@ -3,7 +3,6 @@ import { NavLink, useLocation } from 'react-router-dom'
 import Images from '../../Images'
 import {
   OFFLINE_MODULES,
-  PARTIAL_MODULES,
   PROFILE_CRM,
 } from '../../config/navigation'
 
@@ -126,13 +125,13 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
               onToggle={() => toggleSection('offline')}
               sidebarCollapsed={collapsed}
             />
-            <NavSection
+            {/* <NavSection
               title="Partial Module"
               items={PARTIAL_MODULES}
               expanded={expandedSections.partial}
               onToggle={() => toggleSection('partial')}
               sidebarCollapsed={collapsed}
-            />
+            /> */}
             <NavSection
               title="Profile CRM"
               items={PROFILE_CRM}
@@ -152,13 +151,13 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
               onToggle={() => {}}
               sidebarCollapsed={collapsed}
             />
-            <NavSection
+            {/* <NavSection
               title=""
               items={PARTIAL_MODULES}
               expanded
               onToggle={() => {}}
               sidebarCollapsed={collapsed}
-            />
+            /> */}
             <NavSection
               title=""
               items={PROFILE_CRM}

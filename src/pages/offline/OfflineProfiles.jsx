@@ -1,18 +1,28 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 import { message } from 'antd'
+import { DownloadOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
 import CrmButton from '../../components/crm/CrmButton'
+import {
+  checkLeadAvailability,
+  fetchOfflineProfile,
+  submitOfflineProfile,
+  uploadOfflineProfileFile,
+} from '../../features/offlineProfile/offlineProfileSlice'
 
 const inputClass =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-[#F28B18] focus:ring-1 focus:ring-[#F28B18]'
 
-const labelClass = 'mb-1.5 block text-sm font-semibold text-slate-800'
+const labelClass = 'mb-4 block text-sm font-semibold text-slate-800'
 const errorClass = 'mt-1 text-xs text-[#D71920]'
 
 const ALLOWED_EXTENSIONS = ['.csv', '.xls', '.xlsx']
-const LEAD_TYPE_OPTIONS = ['Fresh Leads', 'Call Back', 'Other Leads']
-const CASTE_OPTIONS = ['Brahmin', 'Other']
-const MOTHER_TONGUE_OPTIONS = ['Tamil', 'Malayalam', 'Telugu', 'Kannada', 'Hindi']
+const LEAD_TYPE_OPTIONS = ['File input - Offline', 'File input - Partial']
+const LEAD_TYPE_API_VALUES = {
+  'File input - Offline': 'offline',
+  'File input - Partial': 'partial',
+}
 
 const INITIAL_FORM = {
   mobile: '',
@@ -22,6 +32,11 @@ const INITIAL_FORM = {
   caste: '',
   source: '',
   motherTongue: '',
+}
+
+const INITIAL_MOBILE_VALIDATION = {
+  mobile: { status: '', message: '' },
+  alternateMobile: { status: '', message: '' },
 }
 
 
@@ -138,6 +153,8 @@ async function validateBulkFile(file) {
 }
 
 export default function OfflineProfiles() {
+  const dispatch = useDispatch()
+  const { data: offlineProfileData, submitStatus, bulkUploadStatus } = useSelector((state) => state.offlineProfile)
   const fileInputRef = useRef(null)
   const [form, setForm] = useState(INITIAL_FORM)
   const [formErrors, setFormErrors] = useState({})
@@ -145,9 +162,23 @@ export default function OfflineProfiles() {
   const [bulkLeadType, setBulkLeadType] = useState('')
   const [bulkError, setBulkError] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
+  const [uploadResult, setUploadResult] = useState(null)
+  const [mobileValidation, setMobileValidation] = useState(INITIAL_MOBILE_VALIDATION)
+  const casteOptions = offlineProfileData.casteList || []
+  const motherTongueOptions = offlineProfileData.motherTons || []
+
+  useEffect(() => {
+    dispatch(fetchOfflineProfile(301666))
+  }, [dispatch])
 
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
+    if (field === 'mobile' || field === 'alternateMobile') {
+      setMobileValidation((prev) => ({
+        ...prev,
+        [field]: { status: '', message: '' },
+      }))
+    }
     if (formErrors[field]) {
       setFormErrors((prev) => {
         const next = { ...prev }
@@ -160,16 +191,83 @@ export default function OfflineProfiles() {
   const inputWithError = (field) =>
     `${inputClass} ${formErrors[field] ? 'border-[#D71920] focus:border-[#D71920] focus:ring-[#D71920]' : ''}`
 
-  const handleSaveProfile = (e) => {
+  const setMobileValidationMessage = (field, status, messageText) => {
+    setMobileValidation((prev) => ({
+      ...prev,
+      [field]: { status, message: messageText },
+    }))
+  }
+
+  const buildMobileValidationMessage = (field, data) => {
+    if (field === 'mobile' && data.isDndMobile1 === 'Yes') {
+      return { status: 'error', message: 'DND - Unable to add Mobile Number' }
+    }
+
+    if (field === 'alternateMobile' && data.isDndMobile2 === 'Yes') {
+      return { status: 'error', message: 'DND - Unable to add Alternate Mobile' }
+    }
+
+    if (data.profileStatus === 'Y' && data.profileId) {
+      return { status: 'error', message: `Profile ID ${data.profileId} already exists` }
+    }
+
+    if (data.profileStatus === 'N' || data.leadStatus === 'N') {
+      return { status: 'success', message: 'Mobile number is valid' }
+    }
+
+    return { status: 'error', message: 'Unable to validate mobile number' }
+  }
+
+  const handleMobileBlur = async (field) => {
+    const mobileNumber = form[field].trim()
+
+    if (!mobileNumber || mobileNumber.length !== 10) {
+      setMobileValidationMessage(field, '', '')
+      return
+    }
+
+    setMobileValidationMessage(field, 'checking', 'Checking mobile number...')
+
+    try {
+      const data = await dispatch(checkLeadAvailability({ field, mobileNumber })).unwrap()
+      const validation = buildMobileValidationMessage(field, data)
+      setMobileValidationMessage(field, validation.status, validation.message)
+    } catch (error) {
+      setMobileValidationMessage(
+        field,
+        'error',
+        error || 'Unable to validate mobile number',
+      )
+    }
+  }
+
+  const handleSaveProfile = async (e) => {
     e.preventDefault()
     const errors = validateProfileForm(form)
     setFormErrors(errors)
 
     if (Object.keys(errors).length) return
 
-    message.success('Profile saved successfully!')
-    setForm(INITIAL_FORM)
-    setFormErrors({})
+    try {
+      await dispatch(
+        submitOfflineProfile({
+          motherTongueId: form.motherTongue,
+          mobileNumber1: form.mobile,
+          mobileNumber2: form.alternateMobile,
+          name: form.name,
+          source: form.source,
+          email: form.email,
+          casteId: Number(form.caste),
+        }),
+      ).unwrap()
+
+      message.success('Profile saved successfully!')
+      setForm(INITIAL_FORM)
+      setFormErrors({})
+      setMobileValidation(INITIAL_MOBILE_VALIDATION)
+    } catch (error) {
+      message.error(error || 'Unable to submit offline profile')
+    }
   }
 
   const assignBulkFile = (file) => {
@@ -203,10 +301,18 @@ export default function OfflineProfiles() {
     }
 
     try {
-      const result = await validateBulkFile(bulkFile)
-      message.success(
-        `Successfully validated ${result.rowCount} record(s) for ${bulkLeadType}.`,
-      )
+      await validateBulkFile(bulkFile)
+      const leadType = LEAD_TYPE_API_VALUES[bulkLeadType]
+      const result = await dispatch(uploadOfflineProfileFile({
+        file: bulkFile,
+        leadType,
+        admUsersId: 301666,
+      })).unwrap()
+      setUploadResult({
+        successCount: result.insertSummary.successCount,
+        failureCount: result.insertSummary.failureCount,
+        leadType: result.leadType || leadType,
+      })
       setBulkFile(null)
       setBulkLeadType('')
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -215,16 +321,61 @@ export default function OfflineProfiles() {
     }
   }
 
+  const getDownloadFileName = (contentDisposition, leadType) => {
+    const fileNameMatch = contentDisposition?.match(/filename="?([^"]+)"?/i)
+    return fileNameMatch?.[1] || `${leadType || 'offline'}-upload-result.csv`
+  }
+
+  const handleDownloadResult = async () => {
+    const leadType = uploadResult?.leadType || 'offline'
+
+    try {
+      const baseUrl = (import.meta.env.VITE_API_URL || '').trim()
+      const response = await fetch(`${baseUrl}/fileupload/download?leadType=${encodeURIComponent(leadType)}`, {
+        method: 'GET',
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || `Request failed with status ${response.status}`)
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+
+      link.href = url
+      link.download = getDownloadFileName(response.headers.get('Content-Disposition'), leadType)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      message.error(error.message || 'Unable to download result file')
+    }
+  }
+
   return (
     <div>
-      <div className="mb-5 flex items-center justify-between">
+      {/* <div className="mb-5 flex items-center justify-between">
         <h1 className="text-xl font-bold text-[#F28B18]">Offline Profile</h1>
-        <CrmButton variant="outline" className="px-4 py-1.5 text-xs uppercase tracking-wide">
-          User Details
-        </CrmButton>
-      </div>
+        <div className="flex flex-col items-start px-3 py-1 w-auto h-[23px] bg-[#EFF6FF] rounded-full">
+          <span className=" font-poppins font-bold text-[10px] leading-[15px] flex items-center tracking-[0.25px] uppercase text-[#2563EB]">
+            USER DETAILS
+          </span>
+        </div>
+      </div> */}
 
       <form onSubmit={handleSaveProfile} className="rounded-lg bg-white p-6 shadow-sm">
+
+      <div className="mb-5 flex items-center justify-between mb-2 border-b border-[#F3F4F6]">
+        <h1 className="text-xl font-bold text-[#F28B18]">Offline Profile</h1>
+        <div className="flex flex-col items-start px-3 py-1 w-auto h-[23px] bg-[#EFF6FF] rounded-full">
+          <span className=" font-poppins font-bold text-[10px] leading-[15px] flex items-center tracking-[0.25px] uppercase text-[#2563EB]">
+            USER DETAILS
+          </span>
+        </div>
+      </div>
         <div className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2">
           <div>
             <label htmlFor="mobile" className={labelClass}>
@@ -236,8 +387,18 @@ export default function OfflineProfiles() {
               placeholder="Enter mobile number"
               value={form.mobile}
               onChange={(e) => updateField('mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+              onBlur={() => handleMobileBlur('mobile')}
             />
             {formErrors.mobile && <p className={errorClass}>{formErrors.mobile}</p>}
+            {!formErrors.mobile && mobileValidation.mobile.message && (
+              <p
+                className={`mt-1 text-xs ${
+                  mobileValidation.mobile.status === 'success' ? 'text-[#00873E]' : 'text-[#D71920]'
+                }`}
+              >
+                {mobileValidation.mobile.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -262,8 +423,18 @@ export default function OfflineProfiles() {
               placeholder="Optional alternate number"
               value={form.alternateMobile}
               onChange={(e) => updateField('alternateMobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+              onBlur={() => handleMobileBlur('alternateMobile')}
             />
             {formErrors.alternateMobile && <p className={errorClass}>{formErrors.alternateMobile}</p>}
+            {!formErrors.alternateMobile && mobileValidation.alternateMobile.message && (
+              <p
+                className={`mt-1 text-xs ${
+                  mobileValidation.alternateMobile.status === 'success' ? 'text-[#00873E]' : 'text-[#D71920]'
+                }`}
+              >
+                {mobileValidation.alternateMobile.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -277,8 +448,8 @@ export default function OfflineProfiles() {
               onChange={(e) => updateField('caste', e.target.value)}
             >
               <option value="" disabled>Select Caste</option>
-              {CASTE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+              {casteOptions.map((option) => (
+                <option key={option.matCasteId} value={option.matCasteId}>{option.name}</option>
               ))}
             </select>
             {formErrors.caste && <p className={errorClass}>{formErrors.caste}</p>}
@@ -322,8 +493,10 @@ export default function OfflineProfiles() {
               onChange={(e) => updateField('motherTongue', e.target.value)}
             >
               <option value="" disabled>Select Mother Tongue</option>
-              {MOTHER_TONGUE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
+              {motherTongueOptions.map((option) => (
+                <option key={option.motherTongueId} value={option.motherTongueId}>
+                  {option.motherTongueName}
+                </option>
               ))}
             </select>
             {formErrors.motherTongue && <p className={errorClass}>{formErrors.motherTongue}</p>}
@@ -331,8 +504,12 @@ export default function OfflineProfiles() {
         </div>
 
         <div className="mt-6 flex justify-center">
-          <CrmButton type="submit" className="min-w-[160px] px-8 py-2.5">
-            Save Profile
+          <CrmButton
+            type="submit"
+            className="min-w-[160px] px-8 py-2.5"
+            disabled={submitStatus === 'loading'}
+          >
+            {submitStatus === 'loading' ? 'Saving...' : 'Save Profile'}
           </CrmButton>
         </div>
       </form>
@@ -378,8 +555,13 @@ export default function OfflineProfiles() {
             </p>
           </div>
           <div className="flex shrink-0 lg:self-center">
-          <CrmButton type="button" className="shrink-0 px-8 py-2.5 lg:mb-0" onClick={handleBulkUpload}>
-            Upload
+          <CrmButton
+            type="button"
+            className="shrink-0 px-8 py-2.5 lg:mb-0"
+            disabled={bulkUploadStatus === 'loading'}
+            onClick={handleBulkUpload}
+          >
+            {bulkUploadStatus === 'loading' ? 'Uploading...' : 'Upload'}
           </CrmButton>
           </div>
 
@@ -404,6 +586,53 @@ export default function OfflineProfiles() {
 
         {bulkError && <p className={`${errorClass} mt-3`}>{bulkError}</p>}
       </div>
+
+      {uploadResult && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 p-4 pt-8">
+          <div className="w-full max-w-[600px] overflow-hidden rounded-sm bg-white shadow-2xl">
+            <div className="flex h-14 items-center justify-between border-b border-[#EEF0F3] px-4">
+              <h2 className="text-[16px] font-medium text-[#333333]">Uploaded Result</h2>
+              <button
+                type="button"
+                aria-label="Close uploaded result popup"
+                className="text-[22px] font-bold leading-none text-[#C0C4CC] hover:text-[#F28B18]"
+                onClick={() => setUploadResult(null)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-4 py-4">
+              <div className="border-t-4 border-[#CBD5E1] pt-10">
+                <div className="flex flex-col items-center justify-center gap-4 border-y border-[#EEF0F3] bg-white px-4 py-3 text-[13px] text-[#333333] sm:flex-row">
+                  <span>
+                    Successfully Insert Count: {uploadResult.successCount} | Failure Count: {uploadResult.failureCount}
+                  </span>
+                  <CrmButton
+                    type="button"
+                    variant="green"
+                    className="h-9 rounded-sm px-4 text-[13px]"
+                    onClick={handleDownloadResult}
+                  >
+                    <DownloadOutlined className="mr-1" />
+                    Download
+                  </CrmButton>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t border-[#EEF0F3] px-4 py-4">
+              <button
+                type="button"
+                className="h-9 rounded-sm border border-[#DDE3EA] bg-[#F8FAFC] px-4 text-sm text-[#333333] hover:bg-slate-100"
+                onClick={() => setUploadResult(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
