@@ -1,12 +1,13 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectIsAuthenticated } from '../features/auth/authSelectors'
 
 export default function ProtectedRoute() {
   const isAuthenticated = useSelector(selectIsAuthenticated)
+  const location = useLocation()
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
   return <Outlet />
