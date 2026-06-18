@@ -1,5 +1,12 @@
-import { useMemo, useState } from 'react'
-import { FilterOutlined, DownloadOutlined, CaretRightOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  CaretRightOutlined,
+  DownloadOutlined,
+  FilterOutlined,
+  MoreOutlined,
+  StopOutlined,
+} from '@ant-design/icons'
+import { message } from 'antd'
 import * as XLSX from 'xlsx'
 import PageHeader from '../components/crm/PageHeader'
 import CrmButton from '../components/crm/CrmButton'
@@ -7,16 +14,38 @@ import CrmButton from '../components/crm/CrmButton'
 const inputClass =
   'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#F28B18] focus:ring-1 focus:ring-[#F28B18]'
 
+const profileCrmRecordingUrl =
+  'https://crm-v2-live.s3.us-west-2.amazonaws.com/crmv2-live-audio/uploads/pulse/wav/1767867617.25135.wav_695f85b31b051.wav'
+
+const playbackRates = [1, 1.5, 2]
+
+function formatAudioTime(seconds = 0) {
+  if (!Number.isFinite(seconds)) return '0:00'
+
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = Math.floor(seconds % 60)
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`
+}
+
+function parseAudioTime(value = '0:00') {
+  const [minutes = '0', seconds = '0'] = value.split(':')
+
+  return Number(minutes) * 60 + Number(seconds)
+}
+
 const callLogs = [
   {
     leadId: '14905405', profileId: '-', dateTime: '2025-09-02 15:20:19.0',
     numberType: 'Primary Number', dialer: 'Tata', status: 'Connected', agent: 'mathankumar.b@kalyanmatrimony.com',
     duration: '00:00:18', recording: true, recordingTime: '0:18', totalTime: '00:00:18',
+    recordingUrl: profileCrmRecordingUrl,
   },
   {
     leadId: '14905406', profileId: '-', dateTime: '2025-09-02 15:20:19.0',
     numberType: 'Primary Number', dialer: 'Tata', status: 'Connected', agent: 'mathankumar.b@kalyanmatrimony.com',
     duration: '00:00:18', recording: true, recordingTime: '0:18', totalTime: '00:00:36',
+    recordingUrl: profileCrmRecordingUrl,
   },
   {
     leadId: '14905407', profileId: '-', dateTime: '2025-09-02 15:20:19.0',
@@ -27,16 +56,27 @@ const callLogs = [
     leadId: '14905408', profileId: '-', dateTime: '2025-09-02 15:20:19.0',
     numberType: 'Primary Number', dialer: 'Tata', status: 'Connected', agent: 'mathankumar.b@kalyanmatrimony.com',
     duration: '00:00:18', recording: true, recordingTime: '0:18', totalTime: '00:01:12',
+    recordingUrl: profileCrmRecordingUrl,
   },
   {
     leadId: '14905409', profileId: '-', dateTime: '2025-09-02 15:20:19.0',
     numberType: 'Primary Number', dialer: 'Tata', status: 'Connected', agent: 'mathankumar.b@kalyanmatrimony.com',
     duration: '00:00:18', recording: true, recordingTime: '0:18', totalTime: '00:01:30',
+    recordingUrl: profileCrmRecordingUrl,
   },
 ]
 
 export default function ProfileCrm() {
+  const audioRef = useRef(null)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [playingLeadId, setPlayingLeadId] = useState('')
+  const [activeMenuLeadId, setActiveMenuLeadId] = useState('')
+  const [activeSpeedLeadId, setActiveSpeedLeadId] = useState('')
+  const [audioTime, setAudioTime] = useState({
+    currentTime: 0,
+    duration: 0,
+  })
+  const [playbackRate, setPlaybackRate] = useState(1)
   const [filters, setFilters] = useState({
     callStatus: '',
     fromDate: '',
@@ -58,6 +98,20 @@ export default function ProfileCrm() {
       return matchesStatus && matchesFromDate && matchesToDate
     })
   }, [appliedFilters])
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!audioRef.current) return
+
+    audioRef.current.playbackRate = playbackRate
+  }, [playbackRate])
 
   const updateFilter = (field, value) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
@@ -93,6 +147,101 @@ export default function ProfileCrm() {
 
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Call Logs')
     XLSX.writeFile(workbook, 'profile-crm-call-logs.xlsx')
+  }
+
+  const stopRecording = () => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    setPlayingLeadId('')
+    setAudioTime((prev) => ({ ...prev, currentTime: 0 }))
+  }
+
+  const toggleRecording = async (log) => {
+    if (!log.recordingUrl) return
+
+    if (playingLeadId === log.leadId) {
+      stopRecording()
+      return
+    }
+
+    if (!audioRef.current) {
+      audioRef.current = new Audio()
+    }
+
+    audioRef.current.pause()
+    audioRef.current.currentTime = 0
+    audioRef.current.src = log.recordingUrl
+    audioRef.current.playbackRate = playbackRate
+    audioRef.current.onloadedmetadata = () => {
+      setAudioTime({
+        currentTime: audioRef.current.currentTime || 0,
+        duration: audioRef.current.duration || 0,
+      })
+    }
+    audioRef.current.ontimeupdate = () => {
+      setAudioTime({
+        currentTime: audioRef.current.currentTime || 0,
+        duration: audioRef.current.duration || 0,
+      })
+    }
+    audioRef.current.onended = () => {
+      setPlayingLeadId('')
+      setAudioTime((prev) => ({ ...prev, currentTime: 0 }))
+    }
+
+    try {
+      await audioRef.current.play()
+      setPlayingLeadId(log.leadId)
+    } catch {
+      setPlayingLeadId('')
+    }
+  }
+
+  const copyRecordingLink = async (recordingUrl) => {
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(recordingUrl)
+      } else {
+        const textArea = document.createElement('textarea')
+        textArea.value = recordingUrl
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        textArea.remove()
+      }
+      message.success('Recording link copied')
+    } catch {
+      message.error('Unable to copy recording link')
+    }
+    setActiveMenuLeadId('')
+  }
+
+  const downloadRecording = (log) => {
+    const link = document.createElement('a')
+    link.href = log.recordingUrl
+    link.download = `recording-${log.leadId}.wav`
+    link.target = '_blank'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setActiveMenuLeadId('')
+  }
+
+  const changePlaybackRate = (rate) => {
+    setPlaybackRate(rate)
+    if (audioRef.current) {
+      audioRef.current.playbackRate = rate
+    }
+    setActiveSpeedLeadId('')
+  }
+
+  const seekRecording = (value) => {
+    if (!audioRef.current) return
+
+    audioRef.current.currentTime = Number(value)
+    setAudioTime((prev) => ({ ...prev, currentTime: Number(value) }))
   }
 
   return (
@@ -237,12 +386,96 @@ export default function ProfileCrm() {
                   <td className="px-5 py-5 text-[#132238]">{log.duration}</td>
                   <td className="px-5 py-5">
                     {log.recording ? (
-                      <div className="inline-flex h-6 items-center gap-2 rounded-full bg-[#F1F5F9] px-3">
-                        <CaretRightOutlined className="text-[10px] text-[#132238]" />
-                        <div className="h-1.5 w-14 rounded-full bg-[#D9E2EC]">
-                          <div className="h-full w-1/2 rounded-full bg-[#F28B18]" />
+                      <div className="relative w-[138px]">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            aria-label={playingLeadId === log.leadId ? 'Stop recording' : 'Play recording'}
+                            className="flex h-5 w-5 items-center justify-center text-[#111827] hover:text-[#F28B18]"
+                            onClick={() => toggleRecording(log)}
+                          >
+                            {playingLeadId === log.leadId ? (
+                              <StopOutlined className="text-[12px]" />
+                            ) : (
+                              <CaretRightOutlined className="text-[13px]" />
+                            )}
+                          </button>
+                          <input
+                            type="range"
+                            min="0"
+                            max={
+                              playingLeadId === log.leadId && audioTime.duration
+                                ? audioTime.duration
+                                : parseAudioTime(log.recordingTime) || 18
+                            }
+                            value={playingLeadId === log.leadId ? audioTime.currentTime : 0}
+                            className="h-1 w-[68px] accent-[#3B82F6]"
+                            disabled={playingLeadId !== log.leadId}
+                            onChange={(e) => seekRecording(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            aria-label="Recording options"
+                            className="flex h-5 w-5 items-center justify-center text-[#111827] hover:text-[#F28B18]"
+                            onClick={() =>
+                              setActiveMenuLeadId((prev) => (prev === log.leadId ? '' : log.leadId))
+                            }
+                          >
+                            <MoreOutlined className="rotate-90 text-[15px]" />
+                          </button>
                         </div>
-                        <span className="text-[10px] text-[#7B8BA3]">{log.recordingTime}</span>
+                        <div className="mt-1 flex items-center justify-between text-[11px] text-[#111827]">
+                          <span>
+                            {playingLeadId === log.leadId
+                              ? formatAudioTime(audioTime.currentTime)
+                              : '0:00'}
+                          </span>
+                          <button
+                            type="button"
+                            className="rounded px-1 text-[11px] hover:bg-[#F1F5F9]"
+                            onClick={() =>
+                              setActiveSpeedLeadId((prev) => (prev === log.leadId ? '' : log.leadId))
+                            }
+                          >
+                            {playbackRate}x
+                          </button>
+                        </div>
+
+                        {activeSpeedLeadId === log.leadId && (
+                          <div className="absolute right-0 top-[42px] z-30 w-16 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                            {playbackRates.map((rate) => (
+                              <button
+                                key={rate}
+                                type="button"
+                                className={`block w-full px-2 py-1 text-left text-[12px] hover:bg-[#FFF5E9] ${
+                                  playbackRate === rate ? 'font-bold text-[#F28B18]' : 'text-slate-700'
+                                }`}
+                                onClick={() => changePlaybackRate(rate)}
+                              >
+                                {rate}x
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {activeMenuLeadId === log.leadId && (
+                          <div className="absolute right-4 top-6 z-30 w-24 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                            <button
+                              type="button"
+                              className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-[#FFF5E9]"
+                              onClick={() => copyRecordingLink(log.recordingUrl)}
+                            >
+                              Copy link
+                            </button>
+                            <button
+                              type="button"
+                              className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-[#FFF5E9]"
+                              onClick={() => downloadRecording(log)}
+                            >
+                              Download
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span className="text-[11px] italic text-[#9AA8B8]">No recording</span>

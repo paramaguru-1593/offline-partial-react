@@ -13,13 +13,28 @@ const fallbackCustomer = {
   leadSource: null,
 }
 
+const fallbackDialerList = ['PULSE', 'EUPRAXIA2', 'VICI2', 'VICI3', 'VICI1', 'VICI5', 'TATA', 'DOOCTI']
+const customerFetchPrefixes = [
+  'offlineCallingProcess/fetchOfflineCustomerByMobile',
+  'offlineCallingProcess/fetchOfflineCustomerByLeadType',
+  'offlineCallingProcess/fetchOfflineCustomer',
+]
+
 const initialState = {
   customer: null,
+  dialerList: fallbackDialerList,
   status: 'idle',
+  dialerStatus: 'idle',
+  dialerCallingStatus: 'idle',
+  registerCheckStatus: 'idle',
   saveStatus: 'idle',
   error: '',
+  dialerError: '',
+  dialerCallingError: '',
+  registerCheckError: '',
   saveError: '',
   isFallback: false,
+  isDialerFallback: true,
 }
 
 function getBaseUrl() {
@@ -146,6 +161,96 @@ export const checkLeadAvailableInProfile = createAsyncThunk(
   },
 )
 
+export const fetchDialerList = createAsyncThunk(
+  'offlineCallingProcess/fetchDialerList',
+  async (admUsersid = '1', { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${getBaseUrl()}/dialerlist`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ admUsersid: String(admUsersid) }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result?.status !== 'Success' || !Array.isArray(result?.data?.dialerList)) {
+        throw new Error(result?.message || 'Unable to fetch dialer list')
+      }
+
+      return result.data.dialerList.filter((dialer) => String(dialer).trim())
+    } catch (error) {
+      return rejectWithValue(error.message || 'Unable to fetch dialer list')
+    }
+  },
+)
+
+export const dialerCalling = createAsyncThunk(
+  'offlineCallingProcess/dialerCalling',
+  async (payload, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${getBaseUrl()}/dialercalling`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result?.status !== 'Success') {
+        throw new Error(result?.message || 'Unable to initiate dialer call')
+      }
+
+      return result.data
+    } catch (error) {
+      return rejectWithValue(error.message || 'Unable to initiate dialer call')
+    }
+  },
+)
+
+export const checkRegisterOffline = createAsyncThunk(
+  'offlineCallingProcess/checkRegisterOffline',
+  async (profileId, { rejectWithValue }) => {
+    try {
+      const response = await fetch(`${getBaseUrl()}/registercheckingoffline`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ profileId }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`)
+      }
+
+      const result = await response.json()
+
+      if (result?.status === 'FAILURE') {
+        throw new Error('Please enter valid profileId properly then Submit')
+      }
+
+      return result
+    } catch (error) {
+      return rejectWithValue(error.message || 'Please enter valid profileId properly then Submit')
+    }
+  },
+)
+
 const offlineCallingProcessSlice = createSlice({
   name: 'offlineCallingProcess',
   initialState,
@@ -171,15 +276,55 @@ const offlineCallingProcessSlice = createSlice({
         state.saveStatus = 'failed'
         state.saveError = action.payload || action.error.message || 'Unable to save offline data'
       })
+      .addCase(fetchDialerList.pending, (state) => {
+        state.dialerStatus = 'loading'
+        state.dialerError = ''
+      })
+      .addCase(fetchDialerList.fulfilled, (state, action) => {
+        state.dialerStatus = 'succeeded'
+        state.dialerList = action.payload
+        state.dialerError = ''
+        state.isDialerFallback = false
+      })
+      .addCase(fetchDialerList.rejected, (state, action) => {
+        state.dialerStatus = 'failed'
+        state.dialerList = fallbackDialerList
+        state.dialerError = action.payload || action.error.message || 'Unable to fetch dialer list'
+        state.isDialerFallback = true
+      })
+      .addCase(dialerCalling.pending, (state) => {
+        state.dialerCallingStatus = 'loading'
+        state.dialerCallingError = ''
+      })
+      .addCase(dialerCalling.fulfilled, (state) => {
+        state.dialerCallingStatus = 'succeeded'
+        state.dialerCallingError = ''
+      })
+      .addCase(dialerCalling.rejected, (state, action) => {
+        state.dialerCallingStatus = 'failed'
+        state.dialerCallingError = action.payload || action.error.message || 'Unable to initiate dialer call'
+      })
+      .addCase(checkRegisterOffline.pending, (state) => {
+        state.registerCheckStatus = 'loading'
+        state.registerCheckError = ''
+      })
+      .addCase(checkRegisterOffline.fulfilled, (state) => {
+        state.registerCheckStatus = 'succeeded'
+        state.registerCheckError = ''
+      })
+      .addCase(checkRegisterOffline.rejected, (state, action) => {
+        state.registerCheckStatus = 'failed'
+        state.registerCheckError = action.payload || action.error.message || 'Please enter valid profileId properly then Submit'
+      })
       .addMatcher(
-        (action) => action.type.startsWith('offlineCallingProcess/fetch') && action.type.endsWith('/pending'),
+        (action) => customerFetchPrefixes.some((prefix) => action.type === `${prefix}/pending`),
         (state) => {
           state.status = 'loading'
           state.error = ''
         },
       )
       .addMatcher(
-        (action) => action.type.startsWith('offlineCallingProcess/fetch') && action.type.endsWith('/fulfilled'),
+        (action) => customerFetchPrefixes.some((prefix) => action.type === `${prefix}/fulfilled`),
         (state, action) => {
           state.status = 'succeeded'
           state.customer = action.payload
@@ -188,7 +333,7 @@ const offlineCallingProcessSlice = createSlice({
         },
       )
       .addMatcher(
-        (action) => action.type.startsWith('offlineCallingProcess/fetch') && action.type.endsWith('/rejected'),
+        (action) => customerFetchPrefixes.some((prefix) => action.type === `${prefix}/rejected`),
         (state, action) => {
           state.status = 'failed'
           state.customer = fallbackCustomer

@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useSelector } from 'react-redux'
 import Images from '../../Images'
 import {
+  filterModulesByProcesses,
   OFFLINE_MODULES,
   PROFILE_CRM,
 } from '../../config/navigation'
+import { selectProcesses } from '../../features/auth/authSelectors'
 
 function getMenuIcon(item, isActive) {
   const iconKey = isActive ? item.iconSelect : item.icon
@@ -84,9 +87,11 @@ function NavSection({ title, items, expanded, onToggle, sidebarCollapsed }) {
 }
 
 export default function Sidebar({ collapsed, onToggleCollapse }) {
+  const processes = useSelector(selectProcesses)
+  const offlineModules = filterModulesByProcesses(OFFLINE_MODULES, processes)
+  const profileModules = filterModulesByProcesses(PROFILE_CRM, processes)
   const [expandedSections, setExpandedSections] = useState({
     offline: true,
-    partial: true,
     profile: true,
   })
 
@@ -118,53 +123,47 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
       <nav className="flex-1 overflow-y-auto overflow-x-hidden py-4 pt-6">
         {!collapsed && (
           <>
-            <NavSection
-              title="Offline Modules"
-              items={OFFLINE_MODULES}
-              expanded={expandedSections.offline}
-              onToggle={() => toggleSection('offline')}
-              sidebarCollapsed={collapsed}
-            />
-            {/* <NavSection
-              title="Partial Module"
-              items={PARTIAL_MODULES}
-              expanded={expandedSections.partial}
-              onToggle={() => toggleSection('partial')}
-              sidebarCollapsed={collapsed}
-            /> */}
-            <NavSection
-              title="Profile CRM"
-              items={PROFILE_CRM}
-              expanded={expandedSections.profile}
-              onToggle={() => toggleSection('profile')}
-              sidebarCollapsed={collapsed}
-            />
+            {offlineModules.length > 0 && (
+              <NavSection
+                title="Offline Modules"
+                items={offlineModules}
+                expanded={expandedSections.offline}
+                onToggle={() => toggleSection('offline')}
+                sidebarCollapsed={collapsed}
+              />
+            )}
+            {profileModules.length > 0 && (
+              <NavSection
+                title="Profile CRM"
+                items={profileModules}
+                expanded={expandedSections.profile}
+                onToggle={() => toggleSection('profile')}
+                sidebarCollapsed={collapsed}
+              />
+            )}
           </>
         )}
 
         {collapsed && (
           <>
-            <NavSection
-              title=""
-              items={OFFLINE_MODULES}
-              expanded
-              onToggle={() => {}}
-              sidebarCollapsed={collapsed}
-            />
-            {/* <NavSection
-              title=""
-              items={PARTIAL_MODULES}
-              expanded
-              onToggle={() => {}}
-              sidebarCollapsed={collapsed}
-            /> */}
-            <NavSection
-              title=""
-              items={PROFILE_CRM}
-              expanded
-              onToggle={() => {}}
-              sidebarCollapsed={collapsed}
-            />
+            {offlineModules.length > 0 && (
+              <NavSection
+                title=""
+                items={offlineModules}
+                expanded
+                onToggle={() => {}}
+                sidebarCollapsed={collapsed}
+              />
+            )}
+            {profileModules.length > 0 && (
+              <NavSection
+                title=""
+                items={profileModules}
+                expanded
+                onToggle={() => {}}
+                sidebarCollapsed={collapsed}
+              />
+            )}
           </>
         )}
       </nav>

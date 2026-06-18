@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { message } from 'antd'
 import { useDispatch, useSelector } from 'react-redux'
 import {
@@ -12,6 +12,9 @@ import CrmButton from '../../components/crm/CrmButton'
 import Images from '../../Images/index'
 import {
   checkLeadAvailableInProfile,
+  checkRegisterOffline,
+  dialerCalling,
+  fetchDialerList,
   fetchOfflineCustomer,
   fetchOfflineCustomerByLeadType,
   fetchOfflineCustomerByMobile,
@@ -67,23 +70,16 @@ function getCustomerDetailRows(customer) {
   ]
 }
 
-const REGISTER_OUTCOME = 'click here to Register'
-
-function openRegisterOfflineTab(mobileNumber) {
-  const params = new URLSearchParams({
-    mobile: mobileNumber,
-    fromCallingProcess: '1',
-  })
-  const url = `${window.location.origin}/crm/register-offline?${params.toString()}`
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
-
 export default function OfflineCallingProcess({
   heading = 'Offline Registration Calling Process',
 }) {
   const dispatch = useDispatch()
   const {
     customer,
+    dialerList,
+    dialerCallingStatus,
+    dialerStatus,
+    registerCheckStatus,
     status: customerStatus,
     saveStatus,
   } = useSelector((state) => state.offlineCallingProcess)
@@ -94,6 +90,11 @@ export default function OfflineCallingProcess({
   const [selectedOutcome, setSelectedOutcome] = useState('')
   const [selectedLanguage, setSelectedLanguage] = useState('')
   const [profileId, setProfileId] = useState('')
+  const [profileCheckError, setProfileCheckError] = useState('')
+  const [isConsentToPayVisible, setIsConsentToPayVisible] = useState(false)
+  const [isConsentToPayChecked, setIsConsentToPayChecked] = useState(false)
+  const [isDialerMenuOpen, setIsDialerMenuOpen] = useState(false)
+  const [openDialerMenuFor, setOpenDialerMenuFor] = useState('')
   const [isGoldSchemeOpen, setIsGoldSchemeOpen] = useState(false)
   const [isGoldSchemeChecked, setIsGoldSchemeChecked] = useState(false)
   const [goldSchemeForm, setGoldSchemeForm] = useState({ name: '', phoneNumber: '' })
@@ -106,6 +107,22 @@ export default function OfflineCallingProcess({
     motherTongue: '',
   })
   const [insertErrors, setInsertErrors] = useState({})
+
+  useEffect(() => {
+    dispatch(fetchDialerList('1'))
+  }, [dispatch])
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!event.target.closest('[data-dialer-menu="true"]')) {
+        setIsDialerMenuOpen(false)
+        setOpenDialerMenuFor('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
 
   const handleGoldSchemeSubmit = () => {
     const errors = {}
@@ -216,6 +233,9 @@ export default function OfflineCallingProcess({
     setSelectedOutcome('')
     setSelectedLanguage('')
     setProfileId('')
+    setProfileCheckError('')
+    setIsConsentToPayVisible(false)
+    setIsConsentToPayChecked(false)
   }
 
   const showCustomerDetails = () => {
@@ -252,25 +272,61 @@ export default function OfflineCallingProcess({
     showCustomerDetails()
   }
 
+  const handleDialerClick = async (dialer) => {
+    setIsDialerMenuOpen(false)
+    setOpenDialerMenuFor('')
+
+    if (!customer?.mobileNumber1) {
+      message.error('Phone number not available')
+      return
+    }
+
+    const normalizedDialer = dialer.toLowerCase()
+
+    try {
+      await dispatch(dialerCalling({
+        dialerType: normalizedDialer,
+        callingteam: 'offlinecalling',
+        selection: normalizedDialer,
+        dialerLeadType: '',
+        dialerofflineLeadId: customer?.id || '',
+        phoneNo: customer.mobileNumber1,
+        idofcall: '',
+      })).unwrap()
+      message.success('Dialer call initiated successfully')
+    } catch (error) {
+      message.error(error || 'Unable to initiate dialer call')
+    }
+  }
+
+  const handleGoldSchemeChange = () => {
+    setIsGoldSchemeChecked(true)
+    setIsGoldSchemeOpen(true)
+  }
+
+  const handleProfileIdCheck = async () => {
+    if (!profileId.trim()) {
+      setProfileCheckError('Please enter valid profileId properly then Submit')
+      setIsConsentToPayVisible(false)
+      setIsConsentToPayChecked(false)
+      return
+    }
+
+    try {
+      await dispatch(checkRegisterOffline(profileId.trim())).unwrap()
+      setProfileCheckError('')
+      setIsConsentToPayVisible(true)
+    } catch (error) {
+      setProfileCheckError(error || 'Please enter valid profileId properly then Submit')
+      setIsConsentToPayVisible(false)
+      setIsConsentToPayChecked(false)
+    }
+  }
+
   const summaryRows = [
     { id: 'CRM_9921', verification: 'PENDING', photo: false, appLogin: false, call: 'Initiate' },
     { id: 'CRM_8842', verification: 'VERIFIED', photo: true, appLogin: true, call: 'Completed' },
   ]
-
-  const handleSubmitResponse = () => {
-    if (selectedOutcome === REGISTER_OUTCOME) {
-      openRegisterOfflineTab(mobileNumber)
-      message.success('Offline registration opened in a new tab.')
-      return
-    }
-
-    message.success('Response submitted successfully.')
-  }
-
-  const handleRegisterSelect = () => {
-    setSelectedOutcome(REGISTER_OUTCOME)
-    openRegisterOfflineTab(mobileNumber)
-  }
 
   return (
     <div className="space-y-4">
@@ -411,10 +467,36 @@ export default function OfflineCallingProcess({
                 <span className="text-[#4E3C32]">{label}</span>
                 <span className="text-[#4E3C32]">:</span>
                 <span className="font-medium text-[#0F1F35]">
-                  {label === 'Phone Number' ? (
+                  {label?.toLowerCase().includes('number') ? (
                     <span className="inline-flex items-center gap-2">
                       {/* <PhoneFilled className="text-[18px] text-[#007A4D]" /> */}
-                      <img src={Images.PhoneIcon} alt="" className="" />
+                      <span
+                        className="relative inline-flex"
+                        data-dialer-menu="true"
+                        onMouseEnter={() => {
+                          setIsDialerMenuOpen(true)
+                          setOpenDialerMenuFor(label)
+                        }}
+                      >
+                        <img src={Images.PhoneIcon} alt="" className="cursor-pointer" />
+                        {isDialerMenuOpen && openDialerMenuFor === label && (
+                        <span className="absolute left-1/2 top-full z-20 mt-2 min-w-[150px] -translate-x-1/2 rounded-md border border-[#DDE3EA] bg-white p-2 text-xs text-[#0F1F35] shadow-lg">
+                          <span className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-l border-t border-[#DDE3EA] bg-white" />
+                          {dialerStatus === 'loading' && <span className="block py-1 text-[#607086]">Loading...</span>}
+                          {dialerList.map((dialer) => (
+                            <button
+                              key={dialer}
+                              type="button"
+                              className="block w-full rounded px-2 py-1 text-left hover:bg-[#FFF5E9] disabled:cursor-not-allowed disabled:opacity-50"
+                              disabled={dialerCallingStatus === 'loading'}
+                              onClick={() => handleDialerClick(dialer)}
+                            >
+                              {dialer}
+                            </button>
+                          ))}
+                        </span>
+                        )}
+                      </span>
                       {value}
                     </span>
                   ) : (
@@ -494,21 +576,46 @@ export default function OfflineCallingProcess({
                   type="checkbox"
                   checked={isGoldSchemeChecked}
                   className="h-5 w-5 rounded border-[#E5C1A6] accent-[#F28B18]"
-                  onChange={() => setIsGoldSchemeOpen(true)}
+                  onChange={handleGoldSchemeChange}
                 />
                 <span>Interested for Kalyan Jewellers Gold Scheme</span>
               </label>
               {selectedOutcome === registerOutcome && (
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-                  <input
-                    className={`${inputClass} max-w-[260px]`}
-                    placeholder="profileId"
-                    value={profileId}
-                    onChange={(e) => setProfileId(e.target.value)}
-                  />
-                  <CrmButton className="h-10 w-fit rounded-md px-8 text-[14px] font-medium">
-                    Check
-                  </CrmButton>
+                <div className="mt-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+                    <input
+                      className={`${inputClass} max-w-[260px]`}
+                      placeholder="profileId"
+                      value={profileId}
+                      onChange={(e) => {
+                        setProfileId(e.target.value)
+                        setProfileCheckError('')
+                        setIsConsentToPayVisible(false)
+                        setIsConsentToPayChecked(false)
+                      }}
+                    />
+                    <CrmButton
+                      className="h-10 w-fit rounded-md px-8 text-[14px] font-medium"
+                      disabled={registerCheckStatus === 'loading'}
+                      onClick={handleProfileIdCheck}
+                    >
+                      {registerCheckStatus === 'loading' ? 'Checking...' : 'Check'}
+                    </CrmButton>
+                  </div>
+                  {profileCheckError && (
+                    <p className="mt-2 text-[12px] font-medium text-[#D71920]">{profileCheckError}</p>
+                  )}
+                  {isConsentToPayVisible && (
+                    <label className="mt-4 flex h-[46px] cursor-pointer items-center gap-3 rounded-md border border-[#D5C2B2] bg-white px-4 text-[15px] font-medium text-[#0F1F35]">
+                      <input
+                        type="checkbox"
+                        checked={isConsentToPayChecked}
+                        className="h-5 w-5 rounded border-[#E5C1A6] accent-[#F28B18]"
+                        onChange={(e) => setIsConsentToPayChecked(e.target.checked)}
+                      />
+                      <span>Consent to Pay</span>
+                    </label>
+                  )}
                 </div>
               )}
             </div>

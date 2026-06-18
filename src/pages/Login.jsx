@@ -1,23 +1,19 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { message } from 'antd'
 import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons'
-import { loginSuccess } from '../features/auth/authSlice'
-import { selectIsAuthenticated } from '../features/auth/authSelectors'
+import { loginUser } from '../features/auth/authSlice'
+import { selectIsAuthenticated, selectLoginStatus } from '../features/auth/authSelectors'
+import { getFirstAllowedPath } from '../config/navigation'
 import Images from '../Images/index'
-
-
-const DUMMY_CREDENTIALS = {
-  email: 'admin@gmail.com',
-  password: '12345',
-}
 
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const dispatch = useDispatch()
   const isAuthenticated = useSelector(selectIsAuthenticated)
+  const loginStatus = useSelector(selectLoginStatus)
   const redirectPath = location.state?.from || '/crm/offline-profiles'
 
   // State Management
@@ -32,7 +28,7 @@ export default function Login() {
   }
 
   // Login Functionality
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
 
     // Validation
@@ -55,23 +51,15 @@ export default function Login() {
 
     if (hasError) return
 
-    // Dummy credentials check
-    if (
-      email === DUMMY_CREDENTIALS.email &&
-      password === DUMMY_CREDENTIALS.password
-    ) {
-      dispatch(
-        loginSuccess({
-          user: { email, name: 'Deepak' },
-          token: 'dummy-jwt-token',
-        }),
-      )
-      message.success('Login successful!')
-      navigate(redirectPath, { replace: true })
-      return
-    }
+    try {
+      const data = await dispatch(loginUser({ email, password })).unwrap()
+      const allowedPath = getFirstAllowedPath(data.processes || [])
 
-    message.error('Invalid email or password')
+      message.success('Login successful!')
+      navigate(allowedPath || redirectPath, { replace: true })
+    } catch (error) {
+      message.error(error || 'Invalid email or password')
+    }
   }
 
   return (
@@ -177,9 +165,10 @@ export default function Login() {
               <div className="pt-2">
                 <button
                   type="submit"
+                  disabled={loginStatus === 'loading'}
                   className="flex w-full cursor-pointer items-center justify-center rounded-[10px] border-0 bg-[#E29928] py-3 font-Regular-Font text-[18px] font-semibold text-white shadow-md outline-none transition-opacity focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 hover:opacity-90"
                 >
-                  Sign In
+                  {loginStatus === 'loading' ? 'Signing In...' : 'Sign In'}
                 </button>
               </div>
 
