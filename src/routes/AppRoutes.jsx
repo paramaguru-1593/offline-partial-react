@@ -12,6 +12,7 @@ import OfflineCallReport from '../pages/offline/OfflineCallReport'
 import OfflineCallingManagement from '../pages/offline/OfflineCallingManagement'
 // import OfflineBucket from '../pages/offline/OfflineBucket'
 import DataTeamReport from '../pages/offline/DataTeamReport'
+import RegisterOffline from '../pages/offline/RegisterOffline'
 
 import PartialRegistrationCalling from '../pages/partial/PartialRegistrationCalling'
 import PartialCallReport from '../pages/partial/PartialCallReport'
@@ -33,6 +34,7 @@ export default function AppRoutes() {
           <Route element={<CrmLayout />}>
             <Route path="/crm/offline-profiles" element={<OfflineProfiles />} />
             <Route path="/crm/offline-calling-process" element={<OfflineCallingProcess />} />
+            <Route path="/crm/register-offline" element={<RegisterOffline />} />
             <Route path="/crm/offline-call-report" element={<OfflineCallReport />} />
             {/* <Route path="/crm/offline-call-lead-order" element={<OfflineCallLeadOrder />} /> */}
             <Route path="/crm/offline-calling-management" element={<OfflineCallingManagement />} />

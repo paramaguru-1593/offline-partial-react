@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useDispatch } from 'react-redux'
+import React, { useState } from 'react'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import { message } from 'antd'
 import { EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons'
 import { loginSuccess } from '../features/auth/authSlice'
+import { selectIsAuthenticated } from '../features/auth/authSelectors'
 import Images from '../Images/index'
 
 
@@ -14,7 +15,10 @@ const DUMMY_CREDENTIALS = {
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const dispatch = useDispatch()
+  const isAuthenticated = useSelector(selectIsAuthenticated)
+  const redirectPath = location.state?.from || '/crm/offline-profiles'
 
   // State Management
   const [email, setEmail] = useState('')
@@ -22,6 +26,10 @@ export default function Login() {
   const [emailError, setEmailError] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [showHidePassword, changeShowHidePassword] = useState(false)
+
+  if (isAuthenticated) {
+    return <Navigate to={redirectPath} replace />
+  }
 
   // Login Functionality
   const handleSubmit = (e) => {
@@ -59,7 +67,7 @@ export default function Login() {
         }),
       )
       message.success('Login successful!')
-      navigate('/crm/offline-profiles', { replace: true })
+      navigate(redirectPath, { replace: true })
       return
     }
 

@@ -67,6 +67,17 @@ function getCustomerDetailRows(customer) {
   ]
 }
 
+const REGISTER_OUTCOME = 'click here to Register'
+
+function openRegisterOfflineTab(mobileNumber) {
+  const params = new URLSearchParams({
+    mobile: mobileNumber,
+    fromCallingProcess: '1',
+  })
+  const url = `${window.location.origin}/crm/register-offline?${params.toString()}`
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 export default function OfflineCallingProcess({
   heading = 'Offline Registration Calling Process',
 }) {
@@ -245,6 +256,21 @@ export default function OfflineCallingProcess({
     { id: 'CRM_9921', verification: 'PENDING', photo: false, appLogin: false, call: 'Initiate' },
     { id: 'CRM_8842', verification: 'VERIFIED', photo: true, appLogin: true, call: 'Completed' },
   ]
+
+  const handleSubmitResponse = () => {
+    if (selectedOutcome === REGISTER_OUTCOME) {
+      openRegisterOfflineTab(mobileNumber)
+      message.success('Offline registration opened in a new tab.')
+      return
+    }
+
+    message.success('Response submitted successfully.')
+  }
+
+  const handleRegisterSelect = () => {
+    setSelectedOutcome(REGISTER_OUTCOME)
+    openRegisterOfflineTab(mobileNumber)
+  }
 
   return (
     <div className="space-y-4">
