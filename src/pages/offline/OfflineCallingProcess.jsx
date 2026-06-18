@@ -4,9 +4,16 @@ import { useDispatch, useSelector } from 'react-redux'
 import {
   CheckOutlined,
   CloseOutlined,
-  PhoneFilled,
   ReloadOutlined,
+  LoginOutlined,
+  PhoneFilled,
+  PhoneOutlined,
   SaveOutlined,
+  SafetyCertificateOutlined,
+  SyncOutlined,
+  UploadOutlined,
+  UserAddOutlined,
+  StopOutlined,
 } from '@ant-design/icons'
 import CrmButton from '../../components/crm/CrmButton'
 import Images from '../../Images/index'
@@ -15,6 +22,7 @@ import {
   checkRegisterOffline,
   dialerCalling,
   fetchDialerList,
+  fetchMotherTongueList,
   fetchOfflineCustomer,
   fetchOfflineCustomerByLeadType,
   fetchOfflineCustomerByMobile,
@@ -56,6 +64,23 @@ const leadTypeApiValues = {
   callback: 'callback',
 }
 
+const staticTodayRegistrationRows = [
+  {
+    id: 'CRM_9921',
+    verification: 'PENDING',
+    photo: false,
+    appLogin: false,
+    call: 'Initiate',
+  },
+  {
+    id: 'CRM_8842',
+    verification: 'VERIFIED',
+    photo: true,
+    appLogin: true,
+    call: 'Completed',
+  },
+]
+
 function getCustomerMotherTongue(customer) {
   return customer?.motherTongue || customer?.motherTongueName || customer?.mothertongueid || customer?.motherTongueId || '-'
 }
@@ -70,6 +95,64 @@ function getCustomerDetailRows(customer) {
   ]
 }
 
+function getMetricNumber(source, keys) {
+  if (!source) return 0
+
+  for (const key of keys) {
+    const value = source[key]
+    const numberValue = Number(value)
+
+    if (value !== undefined && value !== null && !Number.isNaN(numberValue)) {
+      return numberValue
+    }
+  }
+
+  return 0
+}
+
+function MetricCard({ label, value, icon: Icon, tone = 'orange' }) {
+  const toneClasses = {
+    orange: {
+      rail: 'bg-[#F28B18]',
+      surface: 'bg-[#FFF4E8]',
+      icon: 'text-[#F28B18]',
+    },
+    red: {
+      rail: 'bg-[#EF4444]',
+      surface: 'bg-[#FFF1F1]',
+      icon: 'text-[#EF4444]',
+    },
+    blue: {
+      rail: 'bg-[#3B82F6]',
+      surface: 'bg-[#EEF5FF]',
+      icon: 'text-[#3B82F6]',
+    },
+    green: {
+      rail: 'bg-[#22C55E]',
+      surface: 'bg-[#ECFDF3]',
+      icon: 'text-[#16A34A]',
+    },
+  }
+  const colors = toneClasses[tone] || toneClasses.orange
+
+  return (
+    <div className="relative grid min-h-[86px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-lg border border-[#E8D9CA] bg-[linear-gradient(180deg,_#FFFFFF_0%,_#FFFDFB_100%)] px-3.5 py-3 shadow-sm transition-shadow hover:shadow-md">
+      <span className={`absolute left-0 top-0 h-full w-1 ${colors.rail}`} />
+      <div className="min-w-0 pl-1">
+        <p className="text-[10px] font-extrabold uppercase leading-3 tracking-[0.55px] text-[#6D5848]">
+          {label}
+        </p>
+        <p className="min-w-0 text-[25px] font-extrabold leading-none text-[#111827]">
+          {value}
+        </p>
+      </div>
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 ring-white ${colors.surface} ${colors.icon}`}>
+        <Icon className="text-[18px]" />
+      </span>
+    </div>
+  )
+}
+
 export default function OfflineCallingProcess({
   heading = 'Offline Registration Calling Process',
 }) {
@@ -82,6 +165,8 @@ export default function OfflineCallingProcess({
     registerCheckStatus,
     status: customerStatus,
     saveStatus,
+    motherTongueList,
+    motherTongueStatus,
   } = useSelector((state) => state.offlineProfile.callingProcess)
   const authUser = useSelector((state) => state.auth.user)
   const admUsersId = authUser?.admUsersId || authUser?.id
@@ -93,6 +178,7 @@ export default function OfflineCallingProcess({
   const [selectedLanguage, setSelectedLanguage] = useState('')
   const [profileId, setProfileId] = useState('')
   const [profileCheckError, setProfileCheckError] = useState('')
+  const [activeCustomerAction, setActiveCustomerAction] = useState('')
   const [isConsentToPayVisible, setIsConsentToPayVisible] = useState(false)
   const [isConsentToPayChecked, setIsConsentToPayChecked] = useState(false)
   const [isDialerMenuOpen, setIsDialerMenuOpen] = useState(false)
@@ -240,6 +326,11 @@ export default function OfflineCallingProcess({
     }
   }
 
+  const handleOpenInsert = () => {
+    setIsInsertOpen(true)
+    dispatch(fetchMotherTongueList())
+  }
+
   const handleCallStatusClick = (status) => {
     setCallStatus(status)
     setSelectedOutcome('')
@@ -259,35 +350,53 @@ export default function OfflineCallingProcess({
 
   const handleSearchByMobile = async () => {
     if (!hasUserId()) return
+    if (activeCustomerAction) return
 
     if (mobileNumber.length !== 10) {
       message.error('Please enter a valid 10-digit mobile number')
       return
     }
 
-    await dispatch(fetchOfflineCustomerByMobile({
-      mobilenumber: mobileNumber,
-      admUsersId,
-    }))
-    showCustomerDetails()
+    setActiveCustomerAction('search')
+    try {
+      await dispatch(fetchOfflineCustomerByMobile({
+        mobilenumber: mobileNumber,
+        admUsersId,
+      }))
+      showCustomerDetails()
+    } finally {
+      setActiveCustomerAction('')
+    }
   }
 
   const handleShowResults = async () => {
     if (!hasUserId()) return
+    if (activeCustomerAction) return
 
-    await dispatch(fetchOfflineCustomerByLeadType({
-      typecategory: leadTypeApiValues[leadType] || leadType,
-      languagechoosen: 'Tamil',
-      admUsersId,
-    }))
-    showCustomerDetails()
+    setActiveCustomerAction('showResults')
+    try {
+      await dispatch(fetchOfflineCustomerByLeadType({
+        typecategory: leadTypeApiValues[leadType] || leadType,
+        languagechoosen: 'Tamil',
+        admUsersId,
+      }))
+      showCustomerDetails()
+    } finally {
+      setActiveCustomerAction('')
+    }
   }
 
   const handleFetchCustomer = async () => {
     if (!hasUserId()) return
+    if (activeCustomerAction) return
 
-    await dispatch(fetchOfflineCustomer(admUsersId))
-    showCustomerDetails()
+    setActiveCustomerAction('fetch')
+    try {
+      await dispatch(fetchOfflineCustomer(admUsersId))
+      showCustomerDetails()
+    } finally {
+      setActiveCustomerAction('')
+    }
   }
 
   const handleDialerClick = async (dialer) => {
@@ -341,12 +450,66 @@ export default function OfflineCallingProcess({
     }
   }
 
-  const summaryRows = [
-    { id: 'CRM_9921', verification: 'PENDING', photo: false, appLogin: false, call: 'Initiate' },
-    { id: 'CRM_8842', verification: 'VERIFIED', photo: true, appLogin: true, call: 'Completed' },
+  const metricsSource = customer || {}
+  const totalCalls = getMetricNumber(metricsSource, ['totalCalls', 'totalDialout', 'calledTotal'])
+  const uniqueCalls = getMetricNumber(metricsSource, ['uniqueCallCount', 'uniqueCalls'])
+  const totalLeads = getMetricNumber(metricsSource, ['totalLeads', 'leadCount', 'assignedLeads'])
+  const registrations = getMetricNumber(metricsSource, ['registered', 'registrationCount', 'totalRegistration'])
+  const registrationTarget = getMetricNumber(metricsSource, ['registrationTarget', 'totalRegistrationTarget', 'totalRegistered'])
+  const verified = getMetricNumber(metricsSource, ['phoneVerifiedCount', 'verifiedCount', 'verified'])
+  const verifiedTarget = getMetricNumber(metricsSource, ['verifiedTarget', 'totalVerified'])
+  const appLogin = getMetricNumber(metricsSource, ['appLoginCount', 'appLogin'])
+  const appLoginTarget = getMetricNumber(metricsSource, ['appLoginTarget', 'totalAppLogin'])
+  const photoUpload = getMetricNumber(metricsSource, ['photoCount', 'photoUploadCount', 'photo'])
+  const photoUploadTarget = getMetricNumber(metricsSource, ['photoTarget', 'totalPhoto'])
+
+  const metricCards = [
+    {
+      label: 'Total Calls',
+      value: `${totalCalls} / ${totalLeads}`,
+      icon: PhoneOutlined,
+      tone: 'orange',
+    },
+    {
+      label: 'Unique Calls',
+      value: `${uniqueCalls} / ${totalLeads}`,
+      icon: PhoneFilled,
+      tone: 'orange',
+    },
+    {
+      label: 'Avg Unique',
+      value: getMetricNumber(metricsSource, ['avgUnique', 'averageUnique']),
+      icon: SyncOutlined,
+      tone: 'red',
+    },
+    {
+      label: 'Registration',
+      value: `${registrations} / ${registrationTarget}`,
+      icon: UserAddOutlined,
+      tone: 'blue',
+    },
+    {
+      label: 'Verified',
+      value: `${verified} / ${verifiedTarget}`,
+      icon: SafetyCertificateOutlined,
+      tone: 'green',
+    },
+    {
+      label: 'App Login',
+      value: `${appLogin} / ${appLoginTarget}`,
+      icon: LoginOutlined,
+      tone: 'green',
+    },
+    {
+      label: 'Photo Upload',
+      value: `${photoUpload} / ${photoUploadTarget}`,
+      icon: UploadOutlined,
+      tone: 'green',
+    },
   ]
 
   const getRegistrationMobile = () => customer?.mobileNumber1 || mobileNumber
+  const todayRegistrationRows = staticTodayRegistrationRows
 
   const openRegisterOfflineTab = (registrationMobile) => {
     window.open(`/crm/register-offline?mobile=${registrationMobile}`, '_blank', 'noopener,noreferrer')
@@ -373,6 +536,18 @@ export default function OfflineCallingProcess({
 
   return (
     <div className="space-y-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+        {metricCards.map((card) => (
+          <MetricCard
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            icon={card.icon}
+            tone={card.tone}
+          />
+        ))}
+      </section>
+
       <section className="overflow-hidden rounded-[10px] bg-white shadow-sm">
         <div className="bg-[linear-gradient(180deg,_#FFC586_0%,_#F28B18_100%)] px-6 py-3">
           <h1 className="text-[28px] font-extrabold leading-9 text-white">{heading}</h1>
@@ -395,7 +570,7 @@ export default function OfflineCallingProcess({
                     mobileNumber ? '' : 'opacity-50'
                   }`}
                   onClick={handleSearchByMobile}
-                  disabled={customerStatus === 'loading'}
+                  disabled={customerStatus === 'loading' || Boolean(activeCustomerAction)}
                 >
                   <CheckOutlined className="text-[17px] font-bold" />
                 </button>
@@ -414,21 +589,21 @@ export default function OfflineCallingProcess({
             </div>
             <CrmButton
               className="h-10 min-w-0 px-2 text-xs leading-tight whitespace-nowrap"
-              disabled={customerStatus === 'loading'}
+              disabled={customerStatus === 'loading' || Boolean(activeCustomerAction)}
               onClick={handleShowResults}
             >
-              Show Results
+              {activeCustomerAction === 'showResults' ? 'Loading...' : 'Show Results'}
             </CrmButton>
             <button
               className="box-border flex h-10 min-w-0 items-center justify-center rounded-lg border border-[#DAC2AE] px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={customerStatus === 'loading'}
+              disabled={customerStatus === 'loading' || Boolean(activeCustomerAction)}
               onClick={handleFetchCustomer}
             >
-              {customerStatus === 'loading' ? 'Fetching...' : 'Fetch'}
+              {activeCustomerAction === 'fetch' ? 'Fetching...' : 'Fetch'}
             </button>
             <button
               className="box-border flex h-10 min-w-0 items-center justify-center rounded-lg border border-[#DAC2AE] px-2 text-sm font-medium"
-              onClick={() => setIsInsertOpen(true)}
+              onClick={handleOpenInsert}
             >
               Insert
             </button>
@@ -437,59 +612,67 @@ export default function OfflineCallingProcess({
       </section>
 
       <section className="overflow-hidden rounded-[10px] bg-white shadow-sm">
-        <div className="flex h-[61px] items-center justify-between border-b border-[#DAC2AE] bg-[#EFF4FF] px-6">
+        <div className="flex h-[60px] items-center justify-between border-b border-[#D8BDA8] bg-[#EFF4FF] px-6">
           <h2 className="text-[21px] font-extrabold text-[#122033]">Today registration summary</h2>
           <ReloadOutlined className="cursor-pointer text-[20px] text-[#4E3C32] hover:text-[#F28B18]" />
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
-              <tr className="h-8 bg-[#E9E8E6] text-left text-[11px] uppercase tracking-[0.7px] text-[#4E3C32]">
-                <th className="px-16 font-extrabold">Profile ID</th>
-                <th className="px-8 font-extrabold">Verification</th>
-                <th className="px-8 font-extrabold">Photo</th>
-                <th className="px-8 font-extrabold">App Login</th>
-                <th className="px-8 font-extrabold">Call</th>
+              <tr className="h-8 bg-[#E9E8E6] text-[11px] uppercase tracking-[0.7px] text-[#4E3C32]">
+                <th className="px-8 text-center font-extrabold">Profile ID</th>
+                <th className="px-8 text-center font-extrabold">Verification</th>
+                <th className="px-8 text-center font-extrabold">Photo</th>
+                <th className="px-8 text-center font-extrabold">App Login</th>
+                <th className="px-8 text-center font-extrabold">Call</th>
               </tr>
             </thead>
             <tbody>
-              {summaryRows.map((row) => (
-                <tr key={row.id} className="h-[58px] border-b border-[#DAC2AE] last:border-b-0">
-                  <td className="px-16 font-medium text-[#0F1F35]">{row.id}</td>
-                  <td className="px-8">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold ${
-                        row.verification === 'VERIFIED'
-                          ? 'bg-[#C6F7DF] text-[#007A4D]'
-                          : 'bg-[#FFE7D2] text-[#9B4D00]'
-                      }`}
-                    >
-                      {row.verification}
-                    </span>
-                  </td>
-                  <td className="px-8 text-center">
-                    {row.photo ? (
-                       <img src={Images.VerifyIconAdded} alt="" className="" />
-                    ) : (
-                       <img src={Images.PhotoNotAdd} alt="" className="" />
-                    )}
-                  </td>
-                  <td className="px-8 text-center">
-                    {row.appLogin ? (
-                     <img src={Images.AppLogin} alt="" className="" />
-                    ) : (
-                      <img src={Images.VerifyIconAdded} alt="" className="" />
-                    )}
-                  </td>
-                  <td className="px-8">
-                    {row.call === 'Initiate' ? (
-                      <span className="cursor-pointer font-extrabold text-[#8A4B00]">{row.call}</span>
-                    ) : (
-                      <span className="font-extrabold text-[#A9A29B]">{row.call}</span>
-                    )}
+              {todayRegistrationRows.length ? (
+                todayRegistrationRows.map((row) => (
+                  <tr key={row.id} className="h-[58px] border-b border-[#DAC2AE] last:border-b-0">
+                    <td className="px-8 text-center font-medium text-[#0F1F35]">{row.id}</td>
+                    <td className="px-8 text-center">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold ${
+                          String(row.verification).toUpperCase() === 'VERIFIED'
+                            ? 'bg-[#C6F7DF] text-[#007A4D]'
+                            : 'bg-[#FFE7D2] text-[#9B4D00]'
+                        }`}
+                      >
+                        {String(row.verification).toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="px-8 text-center">
+                      {row.photo ? (
+                         <img src={Images.VerifyIconAdded} alt="" className="cursor-pointer" />
+                      ) : (
+                         <img src={Images.PhotoNotAdd} alt="" className="cursor-pointer" />
+                      )}
+                    </td>
+                    <td className="px-8 text-center">
+                      {row.appLogin ? (
+                        <img src={Images.VerifyIconAdded} alt="" className="cursor-pointer" />
+                      ) : (
+                        <img src={Images.AppLogin} alt="" className="cursor-pointer" />
+                      )}
+                    </td>
+                    <td className="px-8 text-center">
+                      {String(row.call).toLowerCase() === 'completed' ? (
+                        <span className="font-extrabold text-[#A9A29B]">Completed</span>
+                      ) : (
+                        <span className="cursor-pointer font-extrabold text-[#8A4B00]">Initiate</span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td className="px-5 py-8 text-center text-sm font-medium text-[#7A6A5D]" colSpan={5}>
+                    Today registration data not available
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -682,7 +865,7 @@ export default function OfflineCallingProcess({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-[3px]">
           <div className="w-full max-w-[512px] overflow-hidden rounded-md bg-white shadow-2xl">
             <div className="flex h-[62px] items-center justify-between border-b border-[#EEF0F3] px-6">
-              <h2 className="text-[18px] font-extrabold text-[#1F2937]">Suspension Reason</h2>
+              <h2 className="text-[18px] font-extrabold text-[#1F2937]">Insert Offline Lead</h2>
               <button
                 type="button"
                 aria-label="Close insert popup"
@@ -744,13 +927,16 @@ export default function OfflineCallingProcess({
                   onChange={(e) => updateInsertField('motherTongue', e.target.value)}
                 >
                   <option value="" disabled>
-                    Select Mother Tongue
+                    {motherTongueStatus === 'loading' ? 'Loading Mother Tongue...' : 'Select Mother Tongue'}
                   </option>
-                  <option value="Tamil">Tamil</option>
-                  <option value="Malayalam">Malayalam</option>
-                  <option value="Telugu">Telugu</option>
-                  <option value="Kannada">Kannada</option>
-                  <option value="Hindi">Hindi</option>
+                  {motherTongueList.map((motherTongue) => (
+                    <option
+                      key={motherTongue.motherTongueId}
+                      value={motherTongue.motherTongueId}
+                    >
+                      {motherTongue.motherTongueName}
+                    </option>
+                  ))}
                 </select>
                 {insertErrors.motherTongue && (
                   <p className="mt-1 text-[12px] text-[#D71920]">{insertErrors.motherTongue}</p>

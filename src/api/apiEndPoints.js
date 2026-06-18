@@ -14,6 +14,7 @@ const ApiEndpoits = {
   offlineSearchById: 'api/offlinesearchbyId',
   offlineRegisCallUser: 'api/offlineregiscalluser',
   offlineFetchData: 'api/offlinefetchdata',
+  motherTongueList: 'api/getMothertongueList',
   saveOfflineData: 'api/saveofflinedata',
   checkLeadAvailableInProfile: 'api/checkleadavailableinprofile',
   dialerList: 'api/V1/dialerlist',

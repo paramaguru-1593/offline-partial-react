@@ -26,12 +26,15 @@ const initialState = {
     registerCheckStatus: 'idle',
     saveStatus: 'idle',
     checkLeadStatus: 'idle',
+    motherTongueList: [],
+    motherTongueStatus: 'idle',
     error: '',
     dialerError: '',
     dialerCallingError: '',
     registerCheckError: '',
     saveError: '',
     checkLeadError: '',
+    motherTongueError: '',
     isFallback: false,
     isDialerFallback: true,
   },
@@ -170,6 +173,20 @@ const offlineProfileSlice = createSlice({
     checkLeadAvailableInProfileFailure: (state, action) => {
       state.callingProcess.checkLeadStatus = 'failed'
       state.callingProcess.checkLeadError = action.payload || 'Unable to check lead availability'
+    },
+    fetchMotherTongueListStart: (state) => {
+      state.callingProcess.motherTongueStatus = 'loading'
+      state.callingProcess.motherTongueError = ''
+    },
+    fetchMotherTongueListSuccess: (state, action) => {
+      state.callingProcess.motherTongueStatus = 'succeeded'
+      state.callingProcess.motherTongueList = action.payload
+      state.callingProcess.motherTongueError = ''
+    },
+    fetchMotherTongueListFailure: (state, action) => {
+      state.callingProcess.motherTongueStatus = 'failed'
+      state.callingProcess.motherTongueList = action.payload?.fallback || []
+      state.callingProcess.motherTongueError = action.payload?.error || 'Unable to fetch mother tongue list'
     },
     fetchDialerListStart: (state) => {
       state.callingProcess.dialerStatus = 'loading'
@@ -315,6 +332,9 @@ export const {
   checkLeadAvailableInProfileStart,
   checkLeadAvailableInProfileSuccess,
   checkLeadAvailableInProfileFailure,
+  fetchMotherTongueListStart,
+  fetchMotherTongueListSuccess,
+  fetchMotherTongueListFailure,
   fetchDialerListStart,
   fetchDialerListSuccess,
   fetchDialerListFailure,

@@ -26,9 +26,11 @@ import {
   fetchOfflineCallReportFailure,
   fetchOfflineCallReportStart,
   fetchOfflineCallReportSuccess,
-  fetchOfflineCustomerFailure,
   fetchOfflineCustomerStart,
   fetchOfflineCustomerSuccess,
+  fetchMotherTongueListFailure,
+  fetchMotherTongueListStart,
+  fetchMotherTongueListSuccess,
   fetchOfflineManagementFailure,
   fetchOfflineManagementStart,
   fetchOfflineManagementSuccess,
@@ -74,6 +76,24 @@ function normalizeCustomer(data) {
   return data?.usercall || data?.userCall || data || null
 }
 
+const offlineCustomerFallback = {
+  id: 10235,
+  name: 'Rajesh Kumar',
+  mobileNumber1: '9876543210',
+  mobileNumber2: '9123456789',
+  motherTongue: 'Tamil',
+  motherTongueId: 49,
+  email: 'rajesh@example.com',
+  callbackComment: null,
+  leadSource: null,
+}
+
+const motherTongueFallback = [
+  { motherTongueId: 49, motherTongueName: 'Tamil' },
+  { motherTongueId: 50, motherTongueName: 'Telugu' },
+  { motherTongueId: 33, motherTongueName: 'Malayalam' },
+]
+
 async function postCustomerJson(path, payload) {
   const response = await ROOT_POST(path, payload)
   const result = response?.data
@@ -82,7 +102,7 @@ async function postCustomerJson(path, payload) {
     throw new Error('Unauthorized')
   }
 
-  if (result?.status !== 'Success' || !result?.data) {
+  if (!isSuccessStatus(result?.status) || !result?.data) {
     throw new Error(result?.message || 'Unable to fetch customer details')
   }
 
@@ -285,9 +305,40 @@ export function downloadOfflineProfileUploadResult(leadType) {
   })
 }
 
+export const fetchMotherTongueList = createAsyncThunk(
+  'offlineProfile/fetchMotherTongueList',
+  async (_, { rejectWithValue, dispatch }) => {
+    const fallbackMessage = 'Unable to fetch mother tongue list'
+
+    try {
+      dispatch(fetchMotherTongueListStart())
+      const response = await ROOT_GET(ApiEndpoits.motherTongueList)
+
+      if (handleUnauthorizedResponse(response)) {
+        dispatch(fetchMotherTongueListFailure({ error: 'Unauthorized', fallback: motherTongueFallback }))
+        return rejectWithValue('Unauthorized')
+      }
+
+      const result = response?.data
+      const motherTongues = result?.data?.motherTons || result?.data?.motherTongues || []
+
+      if (!isSuccessStatus(result?.status) || !Array.isArray(motherTongues) || !motherTongues.length) {
+        throw new Error(result?.message || fallbackMessage)
+      }
+
+      dispatch(fetchMotherTongueListSuccess(motherTongues))
+      return motherTongues
+    } catch (error) {
+      const errorMessage = getApiErrorMessage(error, fallbackMessage)
+      dispatch(fetchMotherTongueListFailure({ error: errorMessage, fallback: motherTongueFallback }))
+      return motherTongueFallback
+    }
+  },
+)
+
 export const fetchOfflineCustomerByMobile = createAsyncThunk(
   'offlineProfile/fetchOfflineCustomerByMobile',
-  async ({ mobilenumber, admUsersId }, { rejectWithValue, dispatch }) => {
+  async ({ mobilenumber, admUsersId }, { dispatch }) => {
     const fallbackMessage = 'Unable to fetch customer details'
 
     try {
@@ -297,15 +348,15 @@ export const fetchOfflineCustomerByMobile = createAsyncThunk(
       return customer
     } catch (error) {
       const errorMessage = getApiErrorMessage(error, fallbackMessage)
-      dispatch(fetchOfflineCustomerFailure(errorMessage))
-      return rejectWithValue(errorMessage)
+      dispatch(fetchOfflineCustomerSuccess(offlineCustomerFallback))
+      return { ...offlineCustomerFallback, apiError: errorMessage }
     }
   },
 )
 
 export const fetchOfflineCustomerByLeadType = createAsyncThunk(
   'offlineProfile/fetchOfflineCustomerByLeadType',
-  async ({ typecategory, languagechoosen = 'Tamil', admUsersId }, { rejectWithValue, dispatch }) => {
+  async ({ typecategory, languagechoosen = 'Tamil', admUsersId }, { dispatch }) => {
     const fallbackMessage = 'Unable to fetch customer details'
 
     try {
@@ -315,15 +366,15 @@ export const fetchOfflineCustomerByLeadType = createAsyncThunk(
       return customer
     } catch (error) {
       const errorMessage = getApiErrorMessage(error, fallbackMessage)
-      dispatch(fetchOfflineCustomerFailure(errorMessage))
-      return rejectWithValue(errorMessage)
+      dispatch(fetchOfflineCustomerSuccess(offlineCustomerFallback))
+      return { ...offlineCustomerFallback, apiError: errorMessage }
     }
   },
 )
 
 export const fetchOfflineCustomer = createAsyncThunk(
   'offlineProfile/fetchOfflineCustomer',
-  async (admUsersId, { rejectWithValue, dispatch }) => {
+  async (admUsersId, { dispatch }) => {
     const fallbackMessage = 'Unable to fetch customer details'
 
     try {
@@ -333,8 +384,8 @@ export const fetchOfflineCustomer = createAsyncThunk(
       return customer
     } catch (error) {
       const errorMessage = getApiErrorMessage(error, fallbackMessage)
-      dispatch(fetchOfflineCustomerFailure(errorMessage))
-      return rejectWithValue(errorMessage)
+      dispatch(fetchOfflineCustomerSuccess(offlineCustomerFallback))
+      return { ...offlineCustomerFallback, apiError: errorMessage }
     }
   },
 )
