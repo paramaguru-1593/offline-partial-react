@@ -1,6 +1,7 @@
 import * as Yup from 'yup'
 import {
   CASTE_OPTIONS,
+  INDIA_COUNTRY_ID,
   NUMBER_WORDS,
   SUB_CASTE_OPTIONS,
   getCasteLabel,
@@ -57,7 +58,7 @@ export const registerOfflineInitialValues = {
   education: '',
   employedInId: '',
   occupationId: '',
-  currency: '1',
+  currency: INDIA_COUNTRY_ID,
   monthly: '',
   starId: '',
   raasiId: '',
@@ -68,7 +69,7 @@ export const registerOfflineInitialValues = {
   FamilyStatusId: '',
   familyTypeId: '',
   familyValuesId: '',
-  parentsCurrency: '1',
+  parentsCurrency: INDIA_COUNTRY_ID,
   parentsMonthlyIncome: '',
   familyMembers: [
     { isdCodeFamily: '+91', familyMobileNumber: '', matRelationshipId: '' },

@@ -257,19 +257,25 @@ export default function OfflineCallingProcess({
     { id: 'CRM_8842', verification: 'VERIFIED', photo: true, appLogin: true, call: 'Completed' },
   ]
 
-  const handleSubmitResponse = () => {
-    if (selectedOutcome === REGISTER_OUTCOME) {
-      openRegisterOfflineTab(mobileNumber)
-      message.success('Offline registration opened in a new tab.')
-      return
-    }
+  const getRegistrationMobile = () => customer?.mobileNumber1 || mobileNumber
 
+  const handleSubmitResponse = () => {
     message.success('Response submitted successfully.')
   }
 
-  const handleRegisterSelect = () => {
-    setSelectedOutcome(REGISTER_OUTCOME)
-    openRegisterOfflineTab(mobileNumber)
+  const handleOutcomeSelect = (item) => {
+    if (item === REGISTER_OUTCOME) {
+      const registrationMobile = getRegistrationMobile()
+      if (registrationMobile.length !== 10) {
+        message.error('Please enter a valid 10-digit mobile number before registering')
+        return
+      }
+      setSelectedOutcome(REGISTER_OUTCOME)
+      openRegisterOfflineTab(registrationMobile)
+      return
+    }
+
+    setSelectedOutcome(item)
   }
 
   return (
@@ -462,7 +468,7 @@ export default function OfflineCallingProcess({
                     name="outcome"
                     checked={selectedOutcome === item}
                     className="peer sr-only"
-                    onChange={() => setSelectedOutcome(item)}
+                    onChange={() => handleOutcomeSelect(item)}
                   />
                   <span className="h-5 w-5 rounded-full border border-[#E5C1A6] peer-checked:border-[#F28B18] peer-checked:shadow-[inset_0_0_0_5px_white] peer-checked:bg-[#F28B18]" />
                   <span className={selectedOutcome === item ? 'font-medium text-[#8A4B00]' : 'font-medium text-[#0F1F35]'}>
@@ -515,7 +521,11 @@ export default function OfflineCallingProcess({
             )}
           </div>
           <div className="bg-[#EFF4FF] px-6 py-6">
-            <CrmButton variant="green" className="h-14 w-full rounded-md text-[16px] font-medium shadow-lg">
+            <CrmButton
+              variant="green"
+              className="h-14 w-full rounded-md text-[16px] font-medium shadow-lg"
+              onClick={handleSubmitResponse}
+            >
               <SaveOutlined className="mr-3" /> Submit Response
             </CrmButton>
           </div>

@@ -18,6 +18,7 @@ import {
   HEIGHT_OPTIONS,
   MARITAL_STATUS_OPTIONS,
   MOTHER_TONGUE_OPTIONS,
+  normalizeCountryId,
   OCCUPATION_OPTIONS,
   PARENT_RELATION_OPTIONS,
   PHYSICAL_STATUS_OPTIONS,
@@ -57,7 +58,7 @@ function mapCountryOptions(isdcodeItems) {
   if (!Array.isArray(isdcodeItems)) return COUNTRY_OPTIONS
 
   return isdcodeItems.map((item) => ({
-    value: String(item.countryId || item.id),
+    value: normalizeCountryId(item.countryId || item.id),
     label: item.country,
     isdcode: item.isdcode,
     currency: item.currency || item.name,
@@ -155,7 +156,8 @@ export function getDefaultFormOptions() {
 }
 
 export function mapBasicDataToInitialValues(data = {}, baseValues = {}) {
-  const countryId = data.selectedcountryId ? String(data.selectedcountryId) : getSelectedId(data.country)
+  const rawCountryId = data.selectedcountryId ? String(data.selectedcountryId) : getSelectedId(data.country)
+  const countryId = normalizeCountryId(rawCountryId)
   const casteId =
     getSelectedArrayId(data.selectedcasteId) ||
     getSelectedId(data.caste) ||
