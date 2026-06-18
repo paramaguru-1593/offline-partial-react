@@ -24,7 +24,16 @@ import OfflineCallReportSelect from "./OfflineCallReportSelect.svg";
 import OfflineManage from "./OfflineManage.svg";
 import OfflineManageSelect from "./OfflineManageSelect.svg";
 
+import AppLogin from "./AppLogin.svg";
+import PhotoNotAdd from "./PhotoNotAdd.svg";
+import VerifyIconAdded from "./VerifyIconAdded.svg";
+import PhoneIcon from "./PhoneIcon.svg";
+
 const Images = {
+    PhoneIcon,
+    AppLogin,
+    PhotoNotAdd,
+    VerifyIconAdded,
     LoginBg,
     LoginFrontLogo,
     LoginFormLogo,

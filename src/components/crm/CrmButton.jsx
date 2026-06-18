@@ -10,7 +10,7 @@ export default function CrmButton({
 
   const variants = {
     primary:
-      'bg-gradient-to-b from-[#FFC586] to-[#F28B18] shadow-sm',
+      'bg-[linear-gradient(180deg,_#FFC586_0%,_#F28B18_100%)] shadow-sm',
     secondary:
       'border border-slate-800 bg-white text-slate-800 shadow-none hover:bg-slate-50',
     outline:
@@ -18,6 +18,7 @@ export default function CrmButton({
     green: 'bg-[#006d41] text-white shadow-sm',
     danger: 'bg-[#DC2626] text-white shadow-sm',
     dark: 'bg-[#475569] text-white shadow-sm',
+    // fetchbutton: 'box-border flex flex-col items-center justify-center px-[26.19px] py-0 w-[89.36px] h-[40px] border border-[#DAC2AE] rounded-lg flex-none order-1 grow-0',
   }
 
   return (
